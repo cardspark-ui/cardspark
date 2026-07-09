@@ -2,19 +2,15 @@
 
 import { CollectionCardRow } from "../collecting/collection-card-row";
 import {
-  CardMetadataBadges,
-  CardNumberBadge,
+  CardBadge,
+  CardBadgeStack,
   formatLanguageLabel,
-  LanguageBadge,
-  RarityBadge,
-  SetBadge
 } from "../core/badges";
-import { applyCardImageTilt, CardImageTilt, resetCardImageTilt } from "../core/card-image-tilt";
+import { applyCardImageTilt, CardArt, resetCardImageTilt } from "../core/card-art";
 import { formatConditionLabel } from "../core/condition";
 import { DeltaValue } from "../core/delta-value";
 import { FilterBar } from "../core/filter-bar";
 import { formatCurrency, formatDeltaFromReference, parseCurrencyLabel } from "../core/money";
-import { MetadataTooltip } from "../core/rarity";
 import { getMarketHistoryGraderValues, getNumericGradeValue, isUngradedGrader } from "../market/history-selection";
 import { MarketSparkline } from "../market/sparkline";
 import { CollectionValueContent } from "../market/value-panel-content";
@@ -23,31 +19,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FilterBarItem, FilterOption } from "../core/filter-bar";
 import type { MarketHistoryDataSet, MarketHistoryDimension } from "../market/history-selection";
 import type { CollectionValueRangeData } from "../market/value-panel-content";
-import type { TcgVariant } from "../core/rarity";
 
 const CARD_DETAIL_SPIN_DURATION_MS = 900;
 const CARD_DETAIL_ACTION_DONE_DURATION_MS = 900;
 const CARD_DETAIL_BUTTON_TILT_MULTIPLIER = 0.55;
 
-export type CardFact = {
+type CardDetailFact = {
   label: string;
   value: ReactNode;
 };
 
-export type CardResourceType =
-  | "Grass"
-  | "Fire"
-  | "Water"
-  | "Lightning"
-  | "Psychic"
-  | "Fighting"
-  | "Darkness"
-  | "Metal"
-  | "Fairy"
-  | "Dragon"
-  | "Colorless";
-
-export type CardDetailCollectionItem = {
+type CardDetailOwnedItem = {
   name: string;
   set: string;
   setCode?: string;
@@ -62,9 +44,9 @@ export type CardDetailCollectionItem = {
   imageAlt?: string;
 };
 
-export type CardDetailHistoryDataSet = MarketHistoryDataSet;
+type CardDetailHistoryDataSet = MarketHistoryDataSet;
 
-export type CardDetailViewProps = {
+export type CardDetailProps = {
   card: {
     name: string;
     set: string;
@@ -78,7 +60,7 @@ export type CardDetailViewProps = {
     type?: string;
     stage?: string;
   };
-  facts: CardFact[];
+  facts: CardDetailFact[];
   variants: string[];
   activeVariant: string;
   conditions?: string[];
@@ -92,7 +74,7 @@ export type CardDetailViewProps = {
     ownedLabel: string;
     costBasis: string;
     actionLabel: string;
-    items?: CardDetailCollectionItem[];
+    items?: CardDetailOwnedItem[];
   };
   market: {
     label: string;
@@ -120,15 +102,15 @@ export type CardDetailViewProps = {
   onRangeChange?: (range: string) => void;
 };
 
-export type CardMediaPanelProps = {
+type DetailMediaColumnProps = {
   media: ReactNode;
-  collection?: CardDetailViewProps["collection"];
+  collection?: CardDetailProps["collection"];
   market?: ReactNode | null;
   isCollectionActionDone?: boolean;
   isCollectionActionPending?: boolean;
 };
 
-export type CardInfoPanelProps = {
+type DetailInfoColumnProps = {
   header: ReactNode;
   controls?: ReactNode;
   collection?: ReactNode;
@@ -348,7 +330,7 @@ function getConditionOptionsForGrader(
   return getGradeOptionsForGrader(grader ?? UNGRADED_GRADER, dimensions, dataSets);
 }
 
-export function CardDetailView({
+export function CardDetail({
   card,
   facts,
   variants,
@@ -364,23 +346,26 @@ export function CardDetailView({
   history,
   onVariantChange,
   onRangeChange
-}: CardDetailViewProps) {
+}: CardDetailProps) {
   const normalizedGraders = getGraderOptions(graders);
   const activeGraderName = getGraderName(activeGrader);
   const activeGraderGrade = getGraderGrade(activeGrader);
 
   return (
-    <CardDetailLayout
+    <DetailFrame
       media={
-        <CardImage
+        <CardArt
           src={card.imageUrl}
           alt={card.imageAlt ?? `${card.name} trading card`}
           fallbackLabel={card.name}
+          rarity={card.rarity}
+          className="cs-detail-card-image"
+          showBackFace
         />
       }
-      header={<CardDetailHeader card={card} />}
-      facts={<CardFacts facts={facts} />}
-      collectionItems={collection.items}
+      header={<DetailHeader card={card} />}
+      facts={<DetailFacts facts={facts} />}
+      ownedItems={collection.items}
       controls={
         <PriceHistoryPanel
           {...history}
@@ -408,11 +393,11 @@ export function CardDetailView({
   );
 }
 
-export function CardDetailLayout({
+function DetailFrame({
   media,
   header,
   facts,
-  collectionItems,
+  ownedItems,
   controls,
   collection,
   market,
@@ -421,9 +406,9 @@ export function CardDetailLayout({
   media: ReactNode;
   header: ReactNode;
   facts: ReactNode;
-  collectionItems?: CardDetailCollectionItem[];
+  ownedItems?: CardDetailOwnedItem[];
   controls: ReactNode;
-  collection: CardDetailViewProps["collection"];
+  collection: CardDetailProps["collection"];
   market: ReactNode | null;
   history: ReactNode | null;
 }) {
@@ -561,37 +546,39 @@ export function CardDetailLayout({
       onPointerMove={handleCardDetailPointerMove}
       onPointerOut={handleCardDetailPointerOut}
     >
-      <CardMediaPanel
-        media={media}
-        collection={collection}
-        market={market}
-        isCollectionActionDone={isCollectionActionDone}
-        isCollectionActionPending={isCardSpinning}
-      />
-      <CardInfoPanel
-        header={header}
-        controls={controls}
-        collection={collectionItems?.length ? <CardCollectionPanel items={collectionItems} /> : null}
-        facts={facts}
-      />
-      {history ? <div className="cs-card-detail-history">{history}</div> : null}
+      <div className="cs-card-detail-layout">
+        <DetailMediaColumn
+          media={media}
+          collection={collection}
+          market={market}
+          isCollectionActionDone={isCollectionActionDone}
+          isCollectionActionPending={isCardSpinning}
+        />
+        <DetailInfoColumn
+          header={header}
+          controls={controls}
+          collection={ownedItems?.length ? <DetailCollectionList items={ownedItems} /> : null}
+          facts={facts}
+        />
+        {history ? <div className="cs-card-detail-history">{history}</div> : null}
+      </div>
     </article>
   );
 }
 
-export function CardMediaPanel({
+function DetailMediaColumn({
   media,
   collection,
   market,
   isCollectionActionDone = false,
   isCollectionActionPending = false
-}: CardMediaPanelProps) {
+}: DetailMediaColumnProps) {
   return (
     <div className="cs-card-detail-media">
       <div className="cs-card-detail-media-stack">
         {media}
         {collection ? (
-          <CollectionStatusPanel
+          <CollectionActionPanel
             {...collection}
             isDone={isCollectionActionDone}
             isPending={isCollectionActionPending}
@@ -603,7 +590,7 @@ export function CardMediaPanel({
   );
 }
 
-export function CardInfoPanel({ header, controls, collection, facts }: CardInfoPanelProps) {
+function DetailInfoColumn({ header, controls, collection, facts }: DetailInfoColumnProps) {
   return (
     <div className="cs-card-detail-main">
       {header}
@@ -614,30 +601,10 @@ export function CardInfoPanel({ header, controls, collection, facts }: CardInfoP
   );
 }
 
-export function CardImage({
-  src,
-  alt,
-  fallbackLabel
-}: {
-  src?: string;
-  alt: string;
-  fallbackLabel: string;
-}) {
-  return (
-    <CardImageTilt
-      src={src}
-      alt={alt}
-      fallbackLabel={fallbackLabel}
-      className="cs-detail-card-image"
-      showBackFace
-    />
-  );
-}
-
-export function CardDetailHeader({
+function DetailHeader({
   card
 }: {
-  card: CardDetailViewProps["card"];
+  card: CardDetailProps["card"];
 }) {
   const metadataLabel = getCardDetailMetadataLabel(card);
 
@@ -645,22 +612,22 @@ export function CardDetailHeader({
     <header className="cs-card-detail-header">
       <div className="cs-card-detail-kicker">
         <p aria-label={metadataLabel}>
-          <CardMetadataBadges className="cs-card-detail-meta-full">
-            <SetBadge set={card.set} code={card.setCode} display="full" />
-            <CardNumberBadge number={card.number} display="full" tooltip={false} />
+          <CardBadgeStack className="cs-card-detail-meta-full">
+            <CardBadge type="set" card={card} display="full" />
+            <CardBadge type="number" card={card} display="full" tooltip={false} />
             <span className="cs-card-detail-meta-separator" aria-hidden="true" />
-            <RarityBadge rarity={card.rarity} display="mark-label" tooltip={false} />
+            <CardBadge type="rarity" card={card} display="mark-label" tooltip={false} />
             <span className="cs-card-detail-meta-separator" aria-hidden="true" />
-            <LanguageBadge language={card.language} display="label" />
-          </CardMetadataBadges>
-          <CardMetadataBadges className="cs-card-detail-meta-short">
-            <SetBadge set={card.set} code={card.setCode} />
-            <CardNumberBadge number={card.number} />
+            <CardBadge type="language" card={card} display="label" />
+          </CardBadgeStack>
+          <CardBadgeStack className="cs-card-detail-meta-short">
+            <CardBadge type="set" card={card} />
+            <CardBadge type="number" card={card} />
             <span className="cs-card-detail-meta-separator" aria-hidden="true" />
-            <RarityBadge rarity={card.rarity} display="mark-code" />
+            <CardBadge type="rarity" card={card} display="mark-code" />
             <span className="cs-card-detail-meta-separator" aria-hidden="true" />
-            <LanguageBadge language={card.language} />
-          </CardMetadataBadges>
+            <CardBadge type="language" card={card} />
+          </CardBadgeStack>
         </p>
       </div>
       <div className="cs-card-detail-title-row">
@@ -672,7 +639,7 @@ export function CardDetailHeader({
   );
 }
 
-function getCardDetailMetadataLabel(card: CardDetailViewProps["card"]) {
+function getCardDetailMetadataLabel(card: CardDetailProps["card"]) {
   return `${card.set} #${card.number} ${card.rarity} ${formatLanguageLabel(card.language)}`;
 }
 
@@ -682,7 +649,7 @@ const CARD_FACT_DISPLAY_LABELS: Record<string, string> = {
   "card text": "Rules"
 };
 
-export function CardFacts({ facts }: { facts: CardFact[] }) {
+function DetailFacts({ facts }: { facts: CardDetailFact[] }) {
   const visibleFacts = facts.filter((fact) => !FACT_LABELS_RENDERED_IN_HEADER.has(normalizeFactLabel(fact.label)));
 
   return (
@@ -708,7 +675,7 @@ export function CardFacts({ facts }: { facts: CardFact[] }) {
   );
 }
 
-export function CardCollectionPanel({ items }: { items: CardDetailCollectionItem[] }) {
+function DetailCollectionList({ items }: { items: CardDetailOwnedItem[] }) {
   return (
     <section className="cs-card-facts-panel cs-card-facts-detail cs-collection-panel" aria-label="Your collection">
       <h3>Your collection</h3>
@@ -740,7 +707,7 @@ export function CardCollectionPanel({ items }: { items: CardDetailCollectionItem
   );
 }
 
-function getCollectionItemDelta(item: CardDetailCollectionItem) {
+function getCollectionItemDelta(item: CardDetailOwnedItem) {
   if (!item.costBasis) {
     return item.delta;
   }
@@ -759,7 +726,7 @@ function getCollectionItemDelta(item: CardDetailCollectionItem) {
   return `${sign}${Math.abs(percentage).toFixed(1)}% (${formatCurrency(Math.abs(difference))})`;
 }
 
-function renderCardFactValue(fact: CardFact, normalizedLabel: string) {
+function renderCardFactValue(fact: CardDetailFact, normalizedLabel: string) {
   if (normalizedLabel === "card text" && typeof fact.value === "string") {
     return <NumberedCardRules value={fact.value} />;
   }
@@ -768,15 +735,7 @@ function renderCardFactValue(fact: CardFact, normalizedLabel: string) {
     return fact.value;
   }
 
-  const resourceType = getKnownResourceType(fact.value);
-
-  if (!resourceType) {
-    return fact.value;
-  }
-
-  return (
-    <CardTypeBadge type={fact.value} />
-  );
+  return <CardBadge type="type" value={fact.value} />;
 }
 
 function NumberedCardRules({ value }: { value: string }) {
@@ -806,222 +765,7 @@ function normalizeFactLabel(label: string) {
   return label.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-const ENERGY_CODE_LABELS: Record<string, CardResourceType> = {
-  C: "Colorless",
-  D: "Darkness",
-  F: "Fighting",
-  G: "Grass",
-  L: "Lightning",
-  M: "Metal",
-  N: "Dragon",
-  P: "Psychic",
-  R: "Fire",
-  W: "Water",
-  Y: "Fairy"
-};
-
-const POKEMON_ENERGY_TYPES: CardResourceType[] = [
-  "Grass",
-  "Fire",
-  "Water",
-  "Lightning",
-  "Psychic",
-  "Fighting",
-  "Darkness",
-  "Metal",
-  "Fairy",
-  "Dragon",
-  "Colorless"
-];
-
-const ENERGY_ASSET_URLS: Record<CardResourceType, string> = {
-  Colorless: new URL("../assets/pokemon/energy/colorless.png", import.meta.url).toString(),
-  Darkness: new URL("../assets/pokemon/energy/darkness.png", import.meta.url).toString(),
-  Dragon: new URL("../assets/pokemon/energy/dragon.png", import.meta.url).toString(),
-  Fairy: new URL("../assets/pokemon/energy/fairy.png", import.meta.url).toString(),
-  Fighting: new URL("../assets/pokemon/energy/fighting.png", import.meta.url).toString(),
-  Fire: new URL("../assets/pokemon/energy/fire.png", import.meta.url).toString(),
-  Grass: new URL("../assets/pokemon/energy/grass.png", import.meta.url).toString(),
-  Lightning: new URL("../assets/pokemon/energy/lightning.png", import.meta.url).toString(),
-  Metal: new URL("../assets/pokemon/energy/metal.png", import.meta.url).toString(),
-  Psychic: new URL("../assets/pokemon/energy/psychic.png", import.meta.url).toString(),
-  Water: new URL("../assets/pokemon/energy/water.png", import.meta.url).toString()
-};
-
-export type CardCostProps = {
-  cost: Array<CardResourceType | string>;
-  label?: string;
-  variant?: TcgVariant;
-};
-
-export type CardAttackTextProps = {
-  cost: Array<CardResourceType | string>;
-  name: string;
-  damage?: string;
-  effect?: string;
-  variant?: TcgVariant;
-};
-
-export type CardWeaknessProps = {
-  resourceType: CardResourceType | string;
-  value: string;
-  variant?: TcgVariant;
-};
-
-export type CardTypeBadgeProps = {
-  type: CardResourceType | string;
-  display?: "mark" | "label" | "mark-label";
-  className?: string;
-  variant?: TcgVariant;
-};
-
-export function CardCost({
-  cost,
-  label,
-  variant = "pokemon"
-}: CardCostProps) {
-  const resourceTypes = cost.map((resource) => normalizeResourceType(resource, variant));
-
-  return (
-    <span className="cs-energy-cost" role="img" aria-label={label ?? getResourceCostLabel(resourceTypes)}>
-      {resourceTypes.map((resourceType, index) => (
-        <CardResourceIcon
-          decorative
-          resourceType={resourceType}
-          variant={variant}
-          key={`${resourceType}-${index}`}
-        />
-      ))}
-    </span>
-  );
-}
-
-export function CardAttackText({
-  cost,
-  name,
-  damage,
-  effect,
-  variant = "pokemon"
-}: CardAttackTextProps) {
-  return (
-    <span className="cs-attack-text">
-      <span className="cs-attack-text-header">
-        <span className="cs-attack-text-title">
-          <CardCost
-            cost={cost}
-            label={`${name} cost: ${getResourceCostLabel(cost.map((resource) => normalizeResourceType(resource, variant)))}`}
-            variant={variant}
-          />
-          <strong>{name}</strong>
-        </span>
-        {damage ? <span className="cs-attack-text-damage">{damage}</span> : null}
-      </span>
-      {effect ? <span className="cs-attack-text-effect">{effect}</span> : null}
-    </span>
-  );
-}
-
-export function CardWeakness({ resourceType, value, variant = "pokemon" }: CardWeaknessProps) {
-  const normalizedResourceType = normalizeResourceType(resourceType, variant);
-
-  return (
-    <span className="cs-energy-line">
-      <CardResourceIcon resourceType={normalizedResourceType} variant={variant} />
-      <span className="cs-energy-line-text">{value}</span>
-    </span>
-  );
-}
-
-export function CardTypeBadge({
-  type,
-  display = "mark-label",
-  className,
-  variant = "pokemon"
-}: CardTypeBadgeProps) {
-  const resourceType = normalizeResourceType(type, variant);
-  const classes = ["cs-metadata-badge", "cs-card-type-badge", "cs-energy-line", className].filter(Boolean).join(" ");
-  const showLabel = display !== "mark";
-
-  return (
-    <span className={classes} aria-label={display === "mark" ? `${type} type` : undefined}>
-      {display === "label" ? null : (
-        <CardResourceIcon decorative resourceType={resourceType} tooltip={!showLabel} variant={variant} />
-      )}
-      {showLabel ? <span className="cs-energy-line-text">{type}</span> : null}
-    </span>
-  );
-}
-
-function CardResourceIcon({
-  decorative = false,
-  resourceType,
-  tooltip = true,
-  variant = "pokemon"
-}: {
-  decorative?: boolean;
-  resourceType: CardResourceType;
-  tooltip?: boolean;
-  variant?: TcgVariant;
-}) {
-  const assetUrl = getResourceAssetUrl(resourceType, variant);
-
-  return (
-    <MetadataTooltip
-      label={
-        <span className="cs-energy-tooltip-label">
-          <img alt="" aria-hidden="true" className="cs-energy-tooltip-icon" src={assetUrl} />
-          <span>{resourceType}</span>
-        </span>
-      }
-      className="cs-energy-tooltip-trigger"
-      disabled={!tooltip}
-    >
-      <img
-        alt={decorative ? "" : `${resourceType} resource`}
-        aria-hidden={decorative ? "true" : undefined}
-        className="cs-energy-icon"
-        data-energy={resourceType.toLowerCase()}
-        src={assetUrl}
-      />
-    </MetadataTooltip>
-  );
-}
-
-function getResourceAssetUrl(resourceType: CardResourceType, variant: TcgVariant) {
-  if (variant === "pokemon") {
-    return ENERGY_ASSET_URLS[resourceType];
-  }
-
-  return ENERGY_ASSET_URLS.Colorless;
-}
-
-function getKnownResourceType(resource: CardResourceType | string, variant: TcgVariant = "pokemon"): CardResourceType | null {
-  const normalized = resource.trim().toLowerCase();
-  const codeLabel = variant === "pokemon" ? ENERGY_CODE_LABELS[resource.trim().toUpperCase()] : null;
-
-  if (codeLabel) return codeLabel;
-
-  const knownType = POKEMON_ENERGY_TYPES.find((type) => type.toLowerCase() === normalized);
-
-  return knownType ?? null;
-}
-
-function normalizeResourceType(resource: CardResourceType | string, variant: TcgVariant = "pokemon"): CardResourceType {
-  return getKnownResourceType(resource, variant) ?? "Colorless";
-}
-
-function getResourceCostLabel(resourceTypes: CardResourceType[]) {
-  const counts = resourceTypes.reduce<Record<string, number>>((accumulator, resourceType) => {
-    accumulator[resourceType] = (accumulator[resourceType] ?? 0) + 1;
-
-    return accumulator;
-  }, {});
-  const parts = Object.entries(counts).map(([resourceType, count]) => `${count} ${resourceType}`);
-
-  return `${parts.join(", ")} resource`;
-}
-
-export function DetailDimensionControls({
+function DetailDimensionControls({
   dimensions,
   selectedOptions,
   selectedValues,
@@ -1117,11 +861,11 @@ export function DetailDimensionControls({
   );
 }
 
-export function CollectionStatusPanel({
+function CollectionActionPanel({
   actionLabel,
   isDone = false,
   isPending = false
-}: CardDetailViewProps["collection"] & {
+}: CardDetailProps["collection"] & {
   isDone?: boolean;
   isPending?: boolean;
 }) {
@@ -1145,38 +889,6 @@ export function CollectionStatusPanel({
           done
         </span>
       </button>
-    </section>
-  );
-}
-
-export function CardMarketPanel({
-  label,
-  price,
-  deltaToday,
-  deltaWeek,
-  freshness,
-  condition,
-  source
-}: CardDetailViewProps["market"]) {
-  return (
-    <section className="cs-detail-panel cs-market-panel">
-      <div className="cs-detail-panel-heading">
-        <h3>{label}</h3>
-        <span>{freshness}</span>
-      </div>
-      <strong className="cs-market-panel-price">{price}</strong>
-      <div className="cs-market-panel-deltas">
-        <span>
-          <DeltaValue value={deltaToday} referenceValue={price} periodLabel="Today" />
-        </span>
-        <span>
-          <DeltaValue value={deltaWeek} referenceValue={price} periodLabel="Week" />
-        </span>
-      </div>
-      <div className="cs-market-panel-controls">
-        <button type="button">{condition}</button>
-        <button type="button">{source}</button>
-      </div>
     </section>
   );
 }
@@ -1220,7 +932,7 @@ function resolveDetailMarketHistoryDataSet({
   );
 }
 
-export function PriceHistoryPanel({
+function PriceHistoryPanel({
   values,
   baselineValue,
   range,
@@ -1238,7 +950,7 @@ export function PriceHistoryPanel({
   dimensions,
   onDimensionChange,
   onRangeChange
-}: CardDetailViewProps["history"] & Pick<CardDetailViewProps["market"], "label" | "price" | "deltaToday"> & {
+}: CardDetailProps["history"] & Pick<CardDetailProps["market"], "label" | "price" | "deltaToday"> & {
   dimensions?: DetailDimension[];
   onDimensionChange?: (label: string, value: string) => void;
   onRangeChange?: (range: string) => void;

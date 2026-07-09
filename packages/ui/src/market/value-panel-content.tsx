@@ -96,6 +96,9 @@ const RANGE_PERIOD_LABELS: Record<string, string> = {
   ALL: "all time"
 };
 
+export const DEFAULT_VALUE_PANEL_RANGES = ["1D", "1W", "1M", "1Y", "ALL"];
+export const DEFAULT_VALUE_PANEL_RANGE = DEFAULT_VALUE_PANEL_RANGES[0];
+
 function getRangePeriodLabel(range: string) {
   return RANGE_PERIOD_LABELS[range.trim().toUpperCase()];
 }
@@ -244,8 +247,8 @@ export function CollectionValueContent({
   pointXPositions,
   chartRangeData,
   renderChartFromValues = false,
-  ranges,
-  activeRange,
+  ranges = DEFAULT_VALUE_PANEL_RANGES,
+  activeRange = DEFAULT_VALUE_PANEL_RANGE,
   description,
   footerLabel,
   footerValue,
@@ -275,8 +278,8 @@ export function CollectionValueContent({
   pointXPositions?: number[];
   chartRangeData?: Partial<Record<string, CollectionValueRangeData>>;
   renderChartFromValues?: boolean;
-  ranges: string[];
-  activeRange: string;
+  ranges?: string[];
+  activeRange?: string;
   description?: string;
   footerLabel?: string;
   footerValue?: string;

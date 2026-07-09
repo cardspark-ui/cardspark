@@ -29,10 +29,10 @@ Available CSS entrypoints:
 ## Import Paths
 
 ```ts
-import { CardTile, FilterBar } from "@cardspark/ui/core";
-import { CollectionValuePanel, SetProgress } from "@cardspark/ui/collecting";
-import { MarketCardRow, MarketSparkline, PriceBadge } from "@cardspark/ui/market";
-import { CardDetailView } from "@cardspark/ui/layouts";
+import { CardStack, CardTile, FilterBar } from "@cardspark/ui/core";
+import { CollectionSummary, SetSummary } from "@cardspark/ui/collecting";
+import { MarketCardRow } from "@cardspark/ui/market";
+import { CardList, CardDetail } from "@cardspark/ui/layouts";
 ```
 
 The root `@cardspark/ui` export re-exports all lanes for convenience.
@@ -44,11 +44,10 @@ Use `@cardspark/ui/core` for reusable card and metadata primitives.
 Available components and helpers:
 
 - `CardGrid`, `CardTile`
-- `CardRow`
-- `CardImage`
-- `CardMetadataBadges`
-- `SetBadge`, `CardNumberBadge`, `RarityBadge`, `ConditionBadge`, `FoilBadge`, `LanguageBadge`, `CardTypeBadge`
-- `RarityMark`, `RarityTooltipLabel`, `MetadataTooltip`
+- `CardStack`, `CardRow`
+- `CardArt`
+- `CardBadge`, `CardBadgeStack`
+- `RarityMark`
 - `DeltaValue`
 - `FilterBar`
 - `formatConditionLabel`, `getConditionAcronym`
@@ -57,7 +56,7 @@ Available components and helpers:
 Example:
 
 ```tsx
-import { CardGrid, CardTile } from "@cardspark/ui/core";
+import { CardGrid, CardStack, CardRow, CardTile } from "@cardspark/ui/core";
 
 export function CollectionGrid({ cards }) {
   return (
@@ -65,18 +64,24 @@ export function CollectionGrid({ cards }) {
       {cards.map((card) => (
         <CardTile
           key={card.id}
-          name={card.name}
-          set={card.set}
-          setCode={card.setCode}
-          number={card.number}
-          rarity={card.rarity}
-          condition={card.condition}
-          price={card.price}
-          delta={card.delta}
-          imageUrl={card.imageUrl}
+          format="market"
+          card={card}
+          value={card.marketValue}
         />
       ))}
     </CardGrid>
+  );
+}
+```
+
+```tsx
+export function WatchlistRows({ cards }) {
+  return (
+    <CardStack>
+      {cards.map((card) => (
+        <CardRow key={card.id} format="market" card={card} />
+      ))}
+    </CardStack>
   );
 }
 ```
@@ -96,17 +101,15 @@ Use `@cardspark/ui/collecting` for ownership and collection progress surfaces.
 Available components:
 
 - `CollectionCardRow`
-- `CollectionSummaryPanel`
-- `CollectionValuePanel`
-- `SetProgress`
-- `CardCollectionPanel`
+- `CollectionSummary`
+- `SetSummary`
 
 Example:
 
 ```tsx
-import { SetProgress } from "@cardspark/ui/collecting";
+import { SetSummary } from "@cardspark/ui/collecting";
 
-<SetProgress
+<SetSummary
   name="Scarlet & Violet 151"
   code="MEW"
   owned={142}
@@ -118,15 +121,11 @@ import { SetProgress } from "@cardspark/ui/collecting";
 
 ## Market
 
-Use `@cardspark/ui/market` for price movement, market rows, sparklines, and history selection helpers.
+Use `@cardspark/ui/market` for value movement, market rows, and history selection helpers.
 
 Available components and helpers:
 
 - `MarketCardRow`
-- `MarketSparkline`
-- `PriceBadge`
-- `CardMarketPanel`
-- `PriceHistoryPanel`
 - `resolveMarketHistoryDataSet`
 - `getMarketHistoryGraderValue`, `getMarketHistoryGraderValues`
 - `getNumericGradeValue`, `isUngradedGrader`
@@ -134,7 +133,7 @@ Available components and helpers:
 Example:
 
 ```tsx
-import { MarketCardRow, MarketSparkline } from "@cardspark/ui/market";
+import { MarketCardRow } from "@cardspark/ui/market";
 
 <MarketCardRow
   name="Lugia V"
@@ -143,10 +142,10 @@ import { MarketCardRow, MarketSparkline } from "@cardspark/ui/market";
   number="186/195"
   rarity="Special Illustration Rare"
   condition="Near Mint"
-  price="$214.75"
+  value="$214.75"
   delta="+5.4%"
   imageUrl="https://images.pokemontcg.io/swsh12/186_hires.png"
-  chart={<MarketSparkline values={[18, 19, 21, 20, 23, 24, 27]} />}
+  chartValues={[18, 19, 21, 20, 23, 24, 27]}
 />;
 ```
 
@@ -156,10 +155,12 @@ Use `@cardspark/ui/layouts` for composed product surfaces.
 
 Available layouts:
 
-- `CardDetailView`
-- `CardDetailLayout`
+- `CardList`
+- `CardDetail`
 
-`CardDetailView` expects card identity, facts, market data, history data, and collection state.
+`CardList` composes `FilterBar` with a switchable `CardGrid` and `CardStack` surface for collection, set, and search views.
+
+`CardDetail` expects card identity, facts, market data, history data, and collection state.
 
 ## Filters
 
@@ -187,7 +188,7 @@ const conditionOptions = ["Near Mint", "Lightly Played", "Damaged"].map((conditi
 
 - Components are React components and require `react >= 18`.
 - Components with event handlers must be rendered from a Client Component in Next.js.
-- Do not pass event handlers from a Server Component into `FilterBar`, `CardRow`, `MarketCardRow`, `CollectionCardRow`, or `SetProgress`.
+- Do not pass event handlers from a Server Component into `FilterBar`, `CardRow`, `MarketCardRow`, `CollectionCardRow`, or `SetSummary`.
 - It is safe to render passive rows/cards from Server Components when no event handler props are supplied.
 
 ## Theming
@@ -199,8 +200,28 @@ Cardspark themes are CSS variable packs. Override semantic `--cs-*` tokens for c
   --cs-color-canvas: #0b0b0c;
   --cs-color-text: #f4f4f5;
   --cs-color-positive: #ccff00;
+  --cs-color-border: #2a2a2f;
+
+  --cs-radius-sm: 4px;
+  --cs-radius-md: 8px;
+  --cs-border-width: 1px;
+
+  --cs-panel-padding: 1rem;
+  --cs-panel-padding-lg: 1.25rem;
+  --cs-card-row-padding: 1rem;
+  --cs-filter-menu-option-padding: 0.75rem;
+  --cs-value-panel-chart-height: 180px;
+  --cs-detail-padding: 2rem;
 }
 ```
+
+Token tiers:
+
+- Core scale: `--cs-space-*`, `--cs-text-*`, `--cs-leading-*`, `--cs-radius-*`, `--cs-border-*`, `--cs-shadow-*`, `--cs-duration-*`, `--cs-ease-*`
+- Semantic surfaces: `--cs-color-*`, `--cs-panel-*`, `--cs-content-*`, `--cs-control-*`, `--cs-action-*`, `--cs-selection-*`, `--cs-tooltip-*`
+- Component escapes: layout knobs such as `--cs-card-grid-min-column`, `--cs-card-row-thumbnail-width`, `--cs-filter-menu-max-height`, `--cs-value-panel-chart-height`, `--cs-detail-padding`
+
+Start themes from the core scale and semantic surfaces. Use component escapes only when a specific component needs different layout density or sizing.
 
 Scope a theme with `data-cardspark-theme`:
 

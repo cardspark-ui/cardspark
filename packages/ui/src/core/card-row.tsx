@@ -1,9 +1,11 @@
-import { CardNumberBadge, ConditionBadge, FoilBadge, RarityBadge, SetBadge } from "./badges";
-import { CardImageTilt } from "./card-image-tilt";
+import { CardBadge, CardBadgeStack } from "./badges";
+import { CardArt } from "./card-art";
+import { getCardFormatDetails, resolveCardPresentation } from "./card-format";
 import { DeltaValue } from "./delta-value";
 import { MetadataTooltip } from "./rarity";
 import type { DeltaValueProps } from "./delta-value";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { CardPresentationBaseProps } from "./card-format";
+import type { ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from "react";
 
 export type CardRowMetadataItem = {
   key: string;
@@ -16,17 +18,12 @@ export type CardRowMetadataItem = {
   tooltip?: boolean;
 };
 
-export type CardRowProps = {
-  name: string;
+export type CardRowProps = CardPresentationBaseProps & {
   nameContent?: ReactNode;
-  imageUrl?: string;
-  imageAlt?: string;
+  imageRarity?: string;
   metadata?: CardRowMetadataItem[];
-  value?: string;
-  delta?: string;
   deltaReferenceValue?: string;
   deltaSecondaryDisplay?: DeltaValueProps["secondaryDisplay"];
-  deltaPeriod?: string;
   chart?: ReactNode;
   details?: ReactNode;
   action?: ReactNode;
@@ -38,17 +35,42 @@ export type CardRowProps = {
   onClick?: () => void;
 };
 
+export type CardStackProps = ComponentPropsWithoutRef<"div"> & {
+  children: ReactNode;
+  className?: string;
+};
+
+export function CardStack({ children, className, ...props }: CardStackProps) {
+  return (
+    <div className={["cs-card-stack", className].filter(Boolean).join(" ")} {...props}>
+      {children}
+    </div>
+  );
+}
+
 export function CardRow({
+  format,
+  card,
   name,
+  set,
+  setCode,
+  number,
+  rarity,
+  condition,
+  variant,
   nameContent,
   imageUrl,
   imageAlt,
-  metadata = [],
+  imageRarity,
+  metadata,
   value,
+  price,
   delta,
   deltaReferenceValue,
   deltaSecondaryDisplay,
   deltaPeriod,
+  dateAdded,
+  costBasis,
   chart,
   details,
   action,
@@ -59,15 +81,44 @@ export function CardRow({
   imageClassName,
   onClick
 }: CardRowProps) {
+  const resolvedCard = resolveCardPresentation({
+    format,
+    card,
+    name,
+    set,
+    setCode,
+    number,
+    rarity,
+    condition,
+    variant,
+    imageUrl,
+    imageAlt,
+    value,
+    price,
+    delta,
+    deltaPeriod,
+    dateAdded,
+    costBasis
+  });
+  const resolvedMetadata =
+    metadata ?? getTradingCardMetadata({
+      set: resolvedCard.set,
+      setCode: resolvedCard.setCode,
+      number: resolvedCard.number,
+      rarity: resolvedCard.rarity,
+      condition: resolvedCard.condition,
+      variant: resolvedCard.variant
+    });
+  const resolvedDetails = getCardFormatDetails(resolvedCard, { details });
   const classes = [
     "cs-card-row",
-    imageUrl ? "cs-card-row-with-thumbnail" : null,
+    resolvedCard.imageUrl ? "cs-card-row-with-thumbnail" : null,
     action ? "cs-card-row-with-action" : null,
     className
   ]
     .filter(Boolean)
     .join(" ");
-  const hasTrailing = Boolean(value || delta || chart || action);
+  const hasTrailing = Boolean(resolvedCard.value || resolvedCard.delta || chart || action);
   const isInteractive = Boolean(onClick);
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
@@ -83,6 +134,7 @@ export function CardRow({
     <article
       className={classes}
       data-active={active ? "true" : undefined}
+      data-format={resolvedCard.format}
       data-interactive={isInteractive ? "true" : undefined}
       role={isInteractive ? "button" : undefined}
       tabIndex={isInteractive ? 0 : undefined}
@@ -90,32 +142,33 @@ export function CardRow({
       onClick={onClick ? () => onClick() : undefined}
       onKeyDown={isInteractive ? handleKeyDown : undefined}
     >
-      {imageUrl ? (
-        <CardImageTilt
-          src={imageUrl}
-          alt={imageAlt ?? `${name} trading card`}
-          fallbackLabel={name}
+      {resolvedCard.imageUrl ? (
+        <CardArt
+          src={resolvedCard.imageUrl}
+          alt={resolvedCard.imageAlt ?? `${resolvedCard.name} trading card`}
+          fallbackLabel={resolvedCard.name}
+          rarity={imageRarity ?? resolvedCard.rarity}
           className={["cs-card-row-thumbnail", imageClassName].filter(Boolean).join(" ")}
           tiltMultiplier={4.5}
         />
       ) : null}
       <div className="cs-card-row-copy">
-        <h3>{nameContent ?? name}</h3>
-        {details ? <div className="cs-card-row-details">{renderCardRowDetails(details)}</div> : null}
-        {metadata.length ? <CardRowMetadata items={metadata} /> : null}
+        <h3>{nameContent ?? resolvedCard.name}</h3>
+        {resolvedDetails ? <div className="cs-card-row-details">{renderCardRowDetails(resolvedDetails)}</div> : null}
+        {resolvedMetadata.length ? <CardRowMetadata items={resolvedMetadata} /> : null}
       </div>
       {hasTrailing ? (
         <div className="cs-card-row-trailing" data-price-position={pricePosition}>
-          {value ? <strong>{value}</strong> : null}
-          {delta || chart ? (
+          {resolvedCard.value ? <strong>{resolvedCard.value}</strong> : null}
+          {resolvedCard.delta || chart ? (
             <div className="cs-card-row-trend">
               {chart}
-              {delta ? (
+              {resolvedCard.delta ? (
                 <DeltaValue
-                  value={delta}
-                  referenceValue={deltaReferenceValue ?? value}
+                  value={resolvedCard.delta}
+                  referenceValue={deltaReferenceValue ?? resolvedCard.value}
                   secondaryDisplay={deltaSecondaryDisplay}
-                  periodLabel={deltaPeriod}
+                  periodLabel={resolvedCard.deltaPeriod}
                 />
               ) : null}
             </div>
@@ -181,7 +234,7 @@ function CardRowMetadata({ items }: { items: CardRowMetadataItem[] }) {
     renderedItems.push(renderCardRowMetadataItem(item));
   }
 
-  return <p className="cs-card-row-meta">{renderedItems}</p>;
+  return <CardBadgeStack className="cs-card-row-meta">{renderedItems}</CardBadgeStack>;
 }
 
 function renderCardRowMetadataSeparator(key: string) {
@@ -239,9 +292,9 @@ export function getTradingCardMetadata({
     set
       ? {
           key: "set",
-          label: <SetBadge set={set} code={setCode} display="full" tooltip={false} />,
-          shortText: <SetBadge set={set} code={setCode} />,
-          fullText: <SetBadge set={set} code={setCode} display="full" />,
+          label: <CardBadge type="set" card={{ set, setCode }} display="full" tooltip={false} />,
+          shortText: <CardBadge type="set" card={{ set, setCode }} />,
+          fullText: <CardBadge type="set" card={{ set, setCode }} display="full" />,
           className: "cs-set-name",
           visibility: "compact",
           tooltip: false
@@ -250,9 +303,9 @@ export function getTradingCardMetadata({
     number
       ? {
           key: "number",
-          label: <CardNumberBadge number={number} display="full" tooltip={false} />,
-          shortText: <CardNumberBadge number={number} />,
-          fullText: <CardNumberBadge number={number} />,
+          label: <CardBadge type="number" card={{ number }} display="full" tooltip={false} />,
+          shortText: <CardBadge type="number" card={{ number }} />,
+          fullText: <CardBadge type="number" card={{ number }} />,
           visibility: "compact",
           tooltip: false
         }
@@ -260,18 +313,18 @@ export function getTradingCardMetadata({
     rarity
       ? {
           key: "rarity",
-          label: <RarityBadge rarity={rarity} display="mark-label" tooltip={false} />,
-          shortText: <RarityBadge rarity={rarity} />,
-          fullText: <RarityBadge rarity={rarity} display="mark-code" />,
+          label: <CardBadge type="rarity" card={{ rarity }} display="mark-label" tooltip={false} />,
+          shortText: <CardBadge type="rarity" card={{ rarity }} />,
+          fullText: <CardBadge type="rarity" card={{ rarity }} display="mark-code" />,
           tooltip: false
         }
       : null,
     condition
       ? {
           key: "condition",
-          label: <ConditionBadge condition={condition} display="label" tooltip={false} />,
-          shortText: <ConditionBadge condition={condition} />,
-          fullText: <ConditionBadge condition={condition} />,
+          label: <CardBadge type="condition" card={{ condition }} display="label" tooltip={false} />,
+          shortText: <CardBadge type="condition" card={{ condition }} />,
+          fullText: <CardBadge type="condition" card={{ condition }} />,
           visibility: "compact",
           tooltip: false
         }
@@ -279,9 +332,9 @@ export function getTradingCardMetadata({
     variant
       ? {
           key: "variant",
-          label: <FoilBadge finish={variant} display="full" tooltip={false} />,
-          shortText: <FoilBadge finish={variant} code={getVariantBadgeCode(variant)} />,
-          fullText: <FoilBadge finish={variant} display="full" />,
+          label: <CardBadge type="foil" card={{ finish: variant }} display="full" tooltip={false} />,
+          shortText: <CardBadge type="foil" card={{ finish: variant, finishCode: getVariantBadgeCode(variant) }} />,
+          fullText: <CardBadge type="foil" card={{ finish: variant }} display="full" />,
           visibility: "compact",
           tooltip: false
         }

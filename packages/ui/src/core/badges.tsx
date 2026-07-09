@@ -1,4 +1,5 @@
 import { formatConditionLabel } from "./condition";
+import { CardBadgeTypeView } from "./card-resource";
 import { getSetShortText } from "./metadata";
 import { getRarityAcronym, MetadataTooltip, RarityMark, RarityTooltipLabel } from "./rarity";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
@@ -6,6 +7,21 @@ import type { ConditionLabelMode } from "./condition";
 import type { TcgVariant } from "./rarity";
 
 export type BadgeDisplay = "compact" | "full";
+export type CardBadgeType = "set" | "number" | "rarity" | "condition" | "foil" | "language" | "type";
+
+export type CardBadgeCard = {
+  set?: string;
+  setCode?: string;
+  number?: string;
+  rarity?: string;
+  condition?: string;
+  finish?: string;
+  finishCode?: string;
+  language?: string;
+  series?: string;
+  type?: string;
+  types?: string[];
+};
 
 export type SetBadgeProps = {
   set: string;
@@ -52,12 +68,152 @@ export type LanguageBadgeProps = {
   className?: string;
 };
 
-export type CardMetadataBadgesProps = ComponentPropsWithoutRef<"span"> & {
+export type TypeBadgeProps = {
+  value: string;
+  display?: "mark" | "label" | "mark-label";
+  tooltip?: boolean;
+  variant?: TcgVariant;
+  className?: string;
+};
+
+export type CardBadgeProps =
+  | ({ type: "set"; card?: CardBadgeCard } & Partial<SetBadgeProps>)
+  | ({ type: "number"; card?: CardBadgeCard } & Partial<CardNumberBadgeProps>)
+  | ({ type: "rarity"; card?: CardBadgeCard } & Partial<RarityBadgeProps>)
+  | ({ type: "condition"; card?: CardBadgeCard } & Partial<ConditionBadgeProps>)
+  | ({ type: "foil"; card?: CardBadgeCard } & Partial<FoilBadgeProps>)
+  | ({ type: "language"; card?: CardBadgeCard } & Partial<LanguageBadgeProps>)
+  | ({ type: "type"; card?: CardBadgeCard } & Partial<TypeBadgeProps>);
+
+export type CardBadgeStackProps = ComponentPropsWithoutRef<"span"> & {
   children: ReactNode;
   className?: string;
 };
 
-export function SetBadge({
+export function CardBadge(props: CardBadgeProps) {
+  switch (props.type) {
+    case "set": {
+      const set = props.set ?? props.card?.set;
+
+      if (!set) {
+        return null;
+      }
+
+      return (
+        <SetBadgeView
+          set={set}
+          code={props.code ?? props.card?.setCode}
+          display={props.display}
+          series={props.series ?? props.card?.series}
+          showSeries={props.showSeries}
+          tooltip={props.tooltip}
+          className={props.className}
+        />
+      );
+    }
+    case "number": {
+      const number = props.number ?? props.card?.number;
+
+      if (!number) {
+        return null;
+      }
+
+      return (
+        <CardNumberBadgeView
+          number={number}
+          display={props.display}
+          tooltip={props.tooltip}
+          className={props.className}
+        />
+      );
+    }
+    case "rarity": {
+      const rarity = props.rarity ?? props.card?.rarity;
+
+      if (!rarity) {
+        return null;
+      }
+
+      return (
+        <RarityBadgeView
+          rarity={rarity}
+          display={props.display}
+          tooltip={props.tooltip}
+          variant={props.variant}
+          className={props.className}
+        />
+      );
+    }
+    case "condition": {
+      const condition = props.condition ?? props.card?.condition;
+
+      if (!condition) {
+        return null;
+      }
+
+      return (
+        <ConditionBadgeView
+          condition={condition}
+          display={props.display}
+          tooltip={props.tooltip}
+          className={props.className}
+        />
+      );
+    }
+    case "foil": {
+      const finish = props.finish ?? props.card?.finish;
+
+      if (!finish) {
+        return null;
+      }
+
+      return (
+        <FoilBadgeView
+          finish={finish}
+          code={props.code ?? props.card?.finishCode}
+          display={props.display}
+          tooltip={props.tooltip}
+          className={props.className}
+        />
+      );
+    }
+    case "language": {
+      return (
+        <LanguageBadgeView
+          language={props.language ?? props.card?.language}
+          display={props.display}
+          tooltip={props.tooltip}
+          className={props.className}
+        />
+      );
+    }
+    case "type": {
+      const cardType = props.value ?? props.card?.type ?? props.card?.types?.[0];
+
+      if (!cardType) {
+        return null;
+      }
+
+      return (
+        <CardBadgeTypeView
+          type={cardType}
+          display={props.display}
+          tooltip={props.tooltip}
+          variant={props.variant}
+          className={props.className}
+        />
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+export function SetBadge(props: SetBadgeProps) {
+  return <CardBadge type="set" {...props} />;
+}
+
+function SetBadgeView({
   set,
   code,
   display = "compact",
@@ -104,7 +260,11 @@ function getSetNameWithoutSeries(set: string, series?: string) {
   return normalizedSet.slice(normalizedSeries.length).trimStart();
 }
 
-export function CardNumberBadge({ number, display = "compact", tooltip = true, className }: CardNumberBadgeProps) {
+export function CardNumberBadge(props: CardNumberBadgeProps) {
+  return <CardBadge type="number" {...props} />;
+}
+
+function CardNumberBadgeView({ number, display = "compact", tooltip = true, className }: CardNumberBadgeProps) {
   const [cardNumber, setTotal] = number.split("/");
   const displayText = display === "compact" ? `#${cardNumber}` : setTotal ? `#${cardNumber}/${setTotal}` : `#${cardNumber}`;
   const tooltipLabel = <BadgeTooltipLabel className="cs-card-number-badge">{getCardNumberLabel(cardNumber, setTotal)}</BadgeTooltipLabel>;
@@ -120,7 +280,11 @@ export function CardNumberBadge({ number, display = "compact", tooltip = true, c
   );
 }
 
-export function RarityBadge({ rarity, display = "mark", tooltip = true, variant = "pokemon", className }: RarityBadgeProps) {
+export function RarityBadge(props: RarityBadgeProps) {
+  return <CardBadge type="rarity" {...props} />;
+}
+
+function RarityBadgeView({ rarity, display = "mark", tooltip = true, variant = "pokemon", className }: RarityBadgeProps) {
   const code = getRarityAcronym(rarity);
   const content = getRarityBadgeContent(rarity, code, display, variant);
 
@@ -135,7 +299,11 @@ export function RarityBadge({ rarity, display = "mark", tooltip = true, variant 
   );
 }
 
-export function ConditionBadge({
+export function ConditionBadge(props: ConditionBadgeProps) {
+  return <CardBadge type="condition" {...props} />;
+}
+
+function ConditionBadgeView({
   condition,
   display = "code",
   tooltip = true,
@@ -155,7 +323,17 @@ export function ConditionBadge({
   );
 }
 
-export function FoilBadge({ finish, code, display = "compact", tooltip = true, className }: FoilBadgeProps) {
+export function FoilBadge(props: FoilBadgeProps) {
+  return <CardBadge type="foil" {...props} />;
+}
+
+function FoilBadgeView({ finish, code, display = "compact", tooltip = true, className }: {
+  finish: string;
+  code?: string;
+  display?: "compact" | "full";
+  tooltip?: boolean;
+  className?: string;
+}) {
   const displayText = display === "compact" ? code ?? finish : finish;
 
   return (
@@ -169,7 +347,11 @@ export function FoilBadge({ finish, code, display = "compact", tooltip = true, c
   );
 }
 
-export function LanguageBadge({ language, display = "code", tooltip = true, className }: LanguageBadgeProps) {
+export function LanguageBadge(props: LanguageBadgeProps) {
+  return <CardBadge type="language" {...props} />;
+}
+
+function LanguageBadgeView({ language, display = "code", tooltip = true, className }: LanguageBadgeProps) {
   const languageCode = getLanguageCode(language);
   const languageLabel = formatLanguageLabel(language);
   const displayText = display === "label" ? languageLabel : languageCode;
@@ -185,9 +367,9 @@ export function LanguageBadge({ language, display = "code", tooltip = true, clas
   );
 }
 
-export function CardMetadataBadges({ children, className, ...props }: CardMetadataBadgesProps) {
+export function CardBadgeStack({ children, className, ...props }: CardBadgeStackProps) {
   return (
-    <span className={["cs-card-metadata-badges", className].filter(Boolean).join(" ")} {...props}>
+    <span className={["cs-card-badge-stack", className].filter(Boolean).join(" ")} {...props}>
       {children}
     </span>
   );

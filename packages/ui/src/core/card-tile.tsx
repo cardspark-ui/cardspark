@@ -1,22 +1,13 @@
-import { CardMetadataBadges, CardNumberBadge, ConditionBadge, RarityBadge, SetBadge } from "./badges";
-import { CardImageTilt } from "./card-image-tilt";
+import { CardArt } from "./card-art";
+import { CardBadge, CardBadgeStack } from "./badges";
+import { resolveCardPresentation } from "./card-format";
 import { DeltaValue } from "./delta-value";
 import type { ReactNode } from "react";
+import type { CardPresentationBaseProps } from "./card-format";
 
 type CardTone = "fire" | "electric" | "water" | "neutral";
 
-export type CardTileProps = {
-  name: string;
-  set: string;
-  setCode?: string;
-  number: string;
-  rarity: string;
-  condition: string;
-  price: string;
-  delta: string;
-  deltaPeriod?: string;
-  imageUrl?: string;
-  imageAlt?: string;
+export type CardTileProps = CardPresentationBaseProps & {
   tone?: CardTone;
 };
 
@@ -25,8 +16,6 @@ export type CardGridProps = {
   columns?: 2 | 3 | 4;
 };
 
-const NON_HOLOGRAPHIC_CARD_RARITIES = new Set(["common", "uncommon"]);
-
 export function CardGrid({ children, columns }: CardGridProps) {
   const className = columns ? `cs-card-grid cs-card-grid-${columns}` : "cs-card-grid";
 
@@ -34,12 +23,16 @@ export function CardGrid({ children, columns }: CardGridProps) {
 }
 
 export function CardTile({
+  format,
+  card,
   name,
   set,
   setCode,
   number,
   rarity,
   condition,
+  variant,
+  value,
   price,
   delta,
   deltaPeriod,
@@ -47,39 +40,66 @@ export function CardTile({
   imageAlt,
   tone = "neutral"
 }: CardTileProps) {
-  const hasHolographicImageEffects = !NON_HOLOGRAPHIC_CARD_RARITIES.has(normalizeRarity(rarity));
+  const resolvedCard = resolveCardPresentation({
+    format,
+    card,
+    name,
+    set,
+    setCode,
+    number,
+    rarity,
+    condition,
+    variant,
+    value,
+    price,
+    delta,
+    deltaPeriod,
+    imageUrl,
+    imageAlt
+  });
+  const badgeCard = {
+    set: resolvedCard.set,
+    setCode: resolvedCard.setCode,
+    number: resolvedCard.number,
+    rarity: resolvedCard.rarity,
+    condition: resolvedCard.condition
+  };
 
   return (
-    <article className="cs-card-tile">
-      <CardImageTilt
-        src={imageUrl}
-        alt={imageAlt ?? `${name} trading card`}
-        fallbackLabel={name}
+    <article className="cs-card-tile" data-format={resolvedCard.format}>
+      <CardArt
+        src={resolvedCard.imageUrl}
+        alt={resolvedCard.imageAlt ?? `${resolvedCard.name} trading card`}
+        fallbackLabel={resolvedCard.name}
+        rarity={resolvedCard.rarity}
         className={`cs-card-art cs-card-art-${tone}`}
-        showGlow={hasHolographicImageEffects}
-        showSpecular={hasHolographicImageEffects}
       />
       <div className="cs-card-footer">
         <div className="cs-card-title-row">
-          <h3>{name}</h3>
-          <strong className="cs-card-price">{price}</strong>
+          <h3>{resolvedCard.name}</h3>
+          {resolvedCard.value ? <strong className="cs-card-price">{resolvedCard.value}</strong> : null}
         </div>
         <div className="cs-card-subtitle-row">
           <p>
-            <CardMetadataBadges>
-              <SetBadge set={set} code={setCode} />
-              <CardNumberBadge number={number} />
-              <RarityBadge rarity={rarity} />
-              <span className="cs-card-tile-condition">(<ConditionBadge condition={condition} />)</span>
-            </CardMetadataBadges>
+            <CardBadgeStack>
+              <CardBadge type="set" card={badgeCard} />
+              <CardBadge type="number" card={badgeCard} />
+              <CardBadge type="rarity" card={badgeCard} />
+              {resolvedCard.condition ? (
+                <span className="cs-card-tile-condition">(<CardBadge type="condition" card={badgeCard} />)</span>
+              ) : null}
+            </CardBadgeStack>
           </p>
-          <DeltaValue value={delta} className="cs-card-delta" referenceValue={price} periodLabel={deltaPeriod} />
+          {resolvedCard.delta ? (
+            <DeltaValue
+              value={resolvedCard.delta}
+              className="cs-card-delta"
+              referenceValue={resolvedCard.value}
+              periodLabel={resolvedCard.deltaPeriod}
+            />
+          ) : null}
         </div>
       </div>
     </article>
   );
-}
-
-function normalizeRarity(rarity: string) {
-  return rarity.trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ").toLowerCase();
 }

@@ -42,7 +42,9 @@ export function FilterBar({
   className
 }: FilterBarProps) {
   const filterBarRef = useRef<HTMLElement>(null);
+  const filterControlsRef = useRef<HTMLDivElement>(null);
   const [pendingMultiValuesById, setPendingMultiValuesById] = useState<Record<string, string[]>>({});
+  const [isOverflowing, setIsOverflowing] = useState(false);
 
   useEffect(() => {
     function handleDocumentPointerDown(event: PointerEvent) {
@@ -63,9 +65,49 @@ export function FilterBar({
     };
   }, []);
 
+  useEffect(() => {
+    const controls = filterControlsRef.current;
+
+    if (!controls) {
+      return;
+    }
+
+    function measureOverflow() {
+      const measuredControls = filterControlsRef.current;
+
+      if (!measuredControls) {
+        return;
+      }
+
+      const nextIsOverflowing = measuredControls.scrollWidth > measuredControls.clientWidth + 1;
+      setIsOverflowing((currentValue) => (currentValue === nextIsOverflowing ? currentValue : nextIsOverflowing));
+    }
+
+    measureOverflow();
+
+    const resizeObserver = new ResizeObserver(measureOverflow);
+    resizeObserver.observe(controls);
+
+    controls.querySelectorAll<HTMLElement>(".cs-filter-control").forEach((control) => {
+      resizeObserver.observe(control);
+    });
+
+    window.addEventListener("resize", measureOverflow);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", measureOverflow);
+    };
+  }, [filters, multiSelect, pendingMultiValuesById]);
+
   return (
-    <section className={["cs-filter-bar", className].filter(Boolean).join(" ")} aria-label={ariaLabel} ref={filterBarRef}>
-      <div className="cs-filter-bar-controls">
+    <section
+      className={["cs-filter-bar", className].filter(Boolean).join(" ")}
+      aria-label={ariaLabel}
+      data-overflowing={isOverflowing ? "true" : undefined}
+      ref={filterBarRef}
+    >
+      <div className="cs-filter-bar-controls" ref={filterControlsRef}>
         {filters.map((filter) => {
           const options = filter.options.map(normalizeFilterOption);
           const useMultiSelect = multiSelect && filter.id !== "grader" && options.length > 2;
@@ -79,6 +121,12 @@ export function FilterBar({
           const isAllValue = useMultiSelect
             ? isAllFilterSelection(filter, options, selectedValues)
             : selectedDisplayText.trim().toLowerCase().startsWith("all");
+          const controlDisplayContent = isAllValue ? (
+            <>
+              +
+              <span className="cs-filter-add-label">{filter.label}</span>
+            </>
+          ) : selectedDisplayText;
           const controlId = `cs-filter-${filter.id.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
           const labelId = `${controlId}-label`;
 
@@ -117,10 +165,10 @@ export function FilterBar({
                 >
                   <summary className="cs-filter-multiselect-trigger" aria-labelledby={`${labelId} ${controlId}-value`}>
                     <span className="cs-filter-size-probe" aria-hidden="true">
-                      {selectedDisplayText}
+                      {controlDisplayContent}
                     </span>
                     <span className="cs-filter-multiselect-value" id={`${controlId}-value`}>
-                      {selectedDisplayText}
+                      {controlDisplayContent}
                     </span>
                     <span className="cs-filter-caret" aria-hidden="true">▼</span>
                   </summary>
@@ -199,11 +247,12 @@ export function FilterBar({
               <span className="cs-filter-label" id={labelId}>{filter.label}</span>
               <span
                 className="cs-filter-select"
+                data-add-filter={isAllValue ? "true" : undefined}
                 data-all-value={isAllValue ? "true" : undefined}
                 data-compact-value={filter.compact ? "true" : undefined}
               >
                 <span className="cs-filter-size-probe" aria-hidden="true">
-                  {selectedDisplayText}
+                  {controlDisplayContent}
                 </span>
                 <select
                   id={controlId}
@@ -221,9 +270,9 @@ export function FilterBar({
                     </option>
                   ))}
                 </select>
-                {filter.compact ? (
+                {filter.compact || isAllValue ? (
                   <span className="cs-filter-value" aria-hidden="true">
-                    {selectedDisplayText}
+                    {controlDisplayContent}
                   </span>
                 ) : null}
                 <span className="cs-filter-caret" aria-hidden="true">▼</span>

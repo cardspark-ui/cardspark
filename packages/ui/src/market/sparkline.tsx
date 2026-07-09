@@ -1,8 +1,6 @@
 type SparklineTone = "positive" | "negative";
 
 const EDGE_FADE_WIDTH = 2.5;
-const THRESHOLD_FADE_WIDTH = 2.5;
-const THRESHOLD_FADE_STEPS = 8;
 
 function getSparklineStableId(value: string) {
   let hash = 0;
@@ -12,10 +10,6 @@ function getSparklineStableId(value: string) {
   }
 
   return `cs-sparkline-${hash.toString(36)}`;
-}
-
-function getToneStrokeVariable(tone: SparklineTone) {
-  return tone === "positive" ? "var(--cs-sparkline-positive-stroke)" : "var(--cs-sparkline-negative-stroke)";
 }
 
 export function MarketSparkline({
@@ -55,13 +49,6 @@ export function MarketSparkline({
   const edgeFadeMaskId = `${stableId}-edge-mask`;
   const edgeFadeOffset = (EDGE_FADE_WIDTH / width) * 100;
 
-  function getInterpolatedPoint(previousPoint: (typeof points)[number], nextPoint: (typeof points)[number], progress: number) {
-    return {
-      x: previousPoint.x + (nextPoint.x - previousPoint.x) * progress,
-      y: previousPoint.y + (nextPoint.y - previousPoint.y) * progress
-    };
-  }
-
   function getToneSegments() {
     if (typeof baselineValue !== "number" || points.length < 2) {
       return null;
@@ -72,12 +59,6 @@ export function MarketSparkline({
       positive: [],
       negative: []
     };
-    const fades: Array<{
-      fromTone: SparklineTone;
-      points: string;
-      stroke: string;
-      toTone: SparklineTone;
-    }> = [];
     let currentTone: SparklineTone = points[0].value >= baselineValue ? "positive" : "negative";
     let currentSegment = [`${points[0].x},${points[0].y}`];
 
@@ -94,26 +75,8 @@ export function MarketSparkline({
       const crossingProgress = (baselineValue - previousPoint.value) / (nextPoint.value - previousPoint.value);
       const crossingX = previousPoint.x + (nextPoint.x - previousPoint.x) * crossingProgress;
       const crossingPoint = `${crossingX},${baselineY}`;
-      const fadeProgressPadding = Math.min((THRESHOLD_FADE_WIDTH / 2) / Math.max(Math.abs(nextPoint.x - previousPoint.x), 0.001), 0.5);
-      const fadeStartProgress = Math.max(0, crossingProgress - fadeProgressPadding);
-      const fadeEndProgress = Math.min(1, crossingProgress + fadeProgressPadding);
       currentSegment.push(crossingPoint);
       segments[currentTone].push(currentSegment);
-
-      for (let step = 0; step < THRESHOLD_FADE_STEPS; step += 1) {
-        const stepStartProgress = fadeStartProgress + ((fadeEndProgress - fadeStartProgress) * step) / THRESHOLD_FADE_STEPS;
-        const stepEndProgress = fadeStartProgress + ((fadeEndProgress - fadeStartProgress) * (step + 1)) / THRESHOLD_FADE_STEPS;
-        const startPoint = getInterpolatedPoint(previousPoint, nextPoint, stepStartProgress);
-        const endPoint = getInterpolatedPoint(previousPoint, nextPoint, stepEndProgress);
-        const nextToneMix = ((step + 0.5) / THRESHOLD_FADE_STEPS) * 100;
-
-        fades.push({
-          fromTone: currentTone,
-          points: `${startPoint.x},${startPoint.y} ${endPoint.x},${endPoint.y}`,
-          stroke: `color-mix(in srgb, ${getToneStrokeVariable(nextTone)} ${nextToneMix}%, ${getToneStrokeVariable(currentTone)})`,
-          toTone: nextTone
-        });
-      }
 
       currentTone = nextTone;
       currentSegment = [crossingPoint, `${nextPoint.x},${nextPoint.y}`];
@@ -121,7 +84,7 @@ export function MarketSparkline({
 
     segments[currentTone].push(currentSegment);
 
-    return { fades, segments };
+    return segments;
   }
 
   const toneSegments = getToneSegments();
@@ -142,25 +105,11 @@ export function MarketSparkline({
       <g className="cs-sparkline-line" mask={`url(#${edgeFadeMaskId})`}>
         {toneSegments ? (
           <>
-            {toneSegments.segments.negative.map((segment, index) => (
+            {toneSegments.negative.map((segment, index) => (
               <polyline key={`negative-${index}`} data-tone="negative" points={segment.join(" ")} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             ))}
-            {toneSegments.segments.positive.map((segment, index) => (
+            {toneSegments.positive.map((segment, index) => (
               <polyline key={`positive-${index}`} data-tone="positive" points={segment.join(" ")} fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            ))}
-            {toneSegments.fades.map((fade, index) => (
-              <polyline
-                key={`fade-${index}`}
-                data-from-tone={fade.fromTone}
-                data-tone="threshold-fade"
-                data-to-tone={fade.toTone}
-                points={fade.points}
-                fill="none"
-                stroke={fade.stroke}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
             ))}
           </>
         ) : (

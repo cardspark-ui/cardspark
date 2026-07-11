@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type AnimationEvent, type PointerEvent } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent,
+  type ComponentPropsWithoutRef,
+  type PointerEvent
+} from "react";
 
 const MAX_COUNTER_TILT_DEGREES = 8;
 const MAX_HOLO_SHIFT_PERCENT = 46;
@@ -32,7 +41,10 @@ type ResolvedCardArtLoadState = Exclude<CardArtLoadState, "auto">;
 type InternalCardArtLoadState = ResolvedCardArtLoadState | "pending";
 const loadedCardArtSources = new Set<string>();
 
-export type CardArtProps = {
+export type CardArtProps = Omit<
+  ComponentPropsWithoutRef<"div">,
+  "children" | "onPointerCancel" | "onPointerLeave" | "onPointerMove"
+> & {
   src?: string;
   alt: string;
   fallbackLabel: string;
@@ -56,7 +68,7 @@ function normalizeRarity(rarity: string) {
 
 function hasHolographicCardEffects(rarity?: string) {
   if (!rarity) {
-    return true;
+    return false;
   }
 
   const normalizedRarity = normalizeRarity(rarity);
@@ -129,7 +141,8 @@ export function resetCardImageTilt(target: HTMLElement) {
   target.style.setProperty("--cs-card-light-opacity", "0");
 }
 
-export function CardArt({
+/** Trading-card artwork with loading, fallback, tilt, glow, and holographic presentation states. */
+export const CardArt = forwardRef<HTMLDivElement, CardArtProps>(function CardArt({
   src,
   alt,
   fallbackLabel,
@@ -140,14 +153,17 @@ export function CardArt({
   showSpecular = "auto",
   specularEffect = "auto",
   showBackFace = false,
-  tiltMultiplier = 1
-}: CardArtProps) {
+  tiltMultiplier = 1,
+  ...rootProps
+}: CardArtProps, ref) {
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const [failedSource, setFailedSource] = useState<string>();
+  const artworkSource = src && failedSource !== src ? src : undefined;
   const [autoLoadState, setAutoLoadState] = useState<InternalCardArtLoadState>(() =>
-    src && !loadedCardArtSources.has(src) ? "pending" : "loaded"
+    artworkSource && !loadedCardArtSources.has(artworkSource) ? "pending" : "loaded"
   );
   const resolvedLoadState = loadState === "auto" ? autoLoadState : loadState;
-  const canShowCardEffects = Boolean(src && resolvedLoadState === "loaded");
+  const canShowCardEffects = Boolean(artworkSource && resolvedLoadState === "loaded");
   const hasGlow = Boolean(canShowCardEffects && resolveCardArtEffect(showGlow, rarity));
   const hasSpecular = Boolean(canShowCardEffects && resolveCardArtEffect(showSpecular, rarity));
   const resolvedSpecularEffect = resolveCardArtSpecularEffect(specularEffect, rarity);
@@ -157,8 +173,14 @@ export function CardArt({
       return;
     }
 
-    setAutoLoadState(src && !loadedCardArtSources.has(src) ? "pending" : "loaded");
-  }, [loadState, src]);
+    setAutoLoadState(artworkSource && !loadedCardArtSources.has(artworkSource) ? "pending" : "loaded");
+  }, [artworkSource, loadState]);
+
+  useEffect(() => {
+    if (failedSource && failedSource !== src) {
+      setFailedSource(undefined);
+    }
+  }, [failedSource, src]);
 
   useEffect(() => {
     if (loadState !== "auto" || autoLoadState !== "pending") {
@@ -192,21 +214,21 @@ export function CardArt({
     (image: HTMLImageElement | null) => {
       imageRef.current = image;
 
-      if (loadState !== "auto" || !src || !image) {
+      if (loadState !== "auto" || !artworkSource || !image) {
         return;
       }
 
       if (image.complete && image.naturalWidth > 0) {
-        loadedCardArtSources.add(src);
+        loadedCardArtSources.add(artworkSource);
         setAutoLoadState("loaded");
       }
     },
-    [loadState, src]
+    [artworkSource, loadState]
   );
 
   function handleArtworkLoad() {
-    if (src) {
-      loadedCardArtSources.add(src);
+    if (artworkSource) {
+      loadedCardArtSources.add(artworkSource);
     }
 
     if (loadState === "auto") {
@@ -224,6 +246,17 @@ export function CardArt({
     }
   }
 
+  function handleArtworkError() {
+    if (src) {
+      loadedCardArtSources.delete(src);
+      setFailedSource(src);
+    }
+
+    if (loadState === "auto") {
+      setAutoLoadState("loaded");
+    }
+  }
+
   function handleLoadAnimationEnd(event: AnimationEvent<HTMLElement>) {
     if (event.animationName === "cs-card-art-load-reveal" && loadState === "auto") {
       setAutoLoadState("loaded");
@@ -231,7 +264,7 @@ export function CardArt({
   }
 
   function handlePointerMove(event: PointerEvent<HTMLElement>) {
-    if (event.pointerType === "touch") {
+    if (event.pointerType === "touch" || resolvedLoadState !== "loaded" || !artworkSource) {
       return;
     }
 
@@ -247,31 +280,34 @@ export function CardArt({
 
   return (
     <div
+      {...rootProps}
+      ref={ref}
       className={["cs-card-image-tilt", className].filter(Boolean).join(" ")}
       data-load-state={resolvedLoadState}
       onPointerMove={handlePointerMove}
       onPointerLeave={resetTilt}
       onPointerCancel={resetTilt}
     >
-      {hasGlow ? <img className="cs-card-image-glow" src={src} alt="" aria-hidden="true" loading="lazy" /> : null}
+      {hasGlow ? <img className="cs-card-image-glow" src={artworkSource} alt="" aria-hidden="true" loading="lazy" /> : null}
       <span className="cs-card-image-plane">
         <span className="cs-card-image-face cs-card-image-front-face">
-          {src ? (
+          {artworkSource ? (
             <span className="cs-card-image-load-stage" onAnimationEnd={handleLoadAnimationEnd}>
               <span className="cs-card-image-load-face cs-card-image-loading-face" aria-hidden="true" />
               <span className="cs-card-image-load-face cs-card-image-loaded-face">
                 <img
                   ref={setArtworkRef}
                   className="cs-card-image-artwork"
-                  src={src}
+                  src={artworkSource}
                   alt={alt}
                   loading="lazy"
                   onLoad={handleArtworkLoad}
+                  onError={handleArtworkError}
                 />
               </span>
             </span>
           ) : (
-            <span aria-hidden="true">{fallbackLabel.slice(0, 2).toUpperCase()}</span>
+            <span role="img" aria-label={alt}>{fallbackLabel.slice(0, 2).toUpperCase()}</span>
           )}
           {hasSpecular ? (
             <span className="cs-card-image-specular" data-effect={resolvedSpecularEffect} aria-hidden="true" />
@@ -283,4 +319,4 @@ export function CardArt({
       </span>
     </div>
   );
-}
+});

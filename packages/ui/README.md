@@ -1,8 +1,10 @@
 # @cardspark/ui
 
-React UI components for TCG card, collection, and market experiences.
+React UI components for Pokémon card, collection, and USD market experiences.
 
 The package is organized by workflow lane. Prefer lane imports over the root aggregate when writing application code.
+
+Phase 1 intentionally targets Pokémon metadata and preformatted USD display values. Additional games, currencies, and locale-aware value models are planned as later adapters rather than baked into the initial component contracts.
 
 ## Setup
 
@@ -31,11 +33,18 @@ Available CSS entrypoints:
 ```ts
 import { CardStack, CardTile, FilterBar } from "@cardspark/ui/core";
 import { CollectionSummary, SetSummary } from "@cardspark/ui/collecting";
-import { MarketCardRow } from "@cardspark/ui/market";
+import { resolveMarketHistoryDataSet } from "@cardspark/ui/market";
 import { CardList, CardDetail } from "@cardspark/ui/layouts";
+import { formatConditionLabel, formatCurrency } from "@cardspark/ui/utils";
 ```
 
-The root `@cardspark/ui` export re-exports all lanes for convenience.
+The root `@cardspark/ui` export re-exports all component lanes for convenience. Use `@cardspark/ui/utils` or `@cardspark/ui/market` for server-safe helpers.
+
+## Card Data
+
+Every canonical `TradingCardData` object requires a stable `id` and `name`. Components that render arrays use the ID for React identity, so it must remain stable across filtering and sorting. Direct presentation props remain available for one-off `CardRow` and `CardTile` instances.
+
+Phase 1 monetary props such as `value`, `marketValue`, `price`, and `costBasis` are preformatted USD display strings. Numeric history series remain numbers and are formatted by the package.
 
 ## Core
 
@@ -48,10 +57,11 @@ Available components and helpers:
 - `CardArt`
 - `CardBadge`, `CardBadgeStack`
 - `RarityMark`
-- `DeltaValue`
 - `FilterBar`
 - `formatConditionLabel`, `getConditionAcronym`
 - `formatCurrency`, `formatDeltaFromReference`, `parseCurrencyLabel`
+
+The helpers remain available from `core` for compatibility; prefer `@cardspark/ui/utils` when calling them in server code.
 
 Example:
 
@@ -86,9 +96,11 @@ export function WatchlistRows({ cards }) {
 }
 ```
 
-Condition labels use one shared convention:
+Condition labels use one shared convention. Import helpers from the server-safe utility entrypoint when they are called outside a Client Component:
 
 ```ts
+import { formatConditionLabel } from "@cardspark/ui/utils";
+
 formatConditionLabel("Lightly Played", "code"); // "LP"
 formatConditionLabel("Lightly Played", "label"); // "Lightly Played"
 formatConditionLabel("Lightly Played", "code-label"); // "LP - Lightly Played"
@@ -100,7 +112,6 @@ Use `@cardspark/ui/collecting` for ownership and collection progress surfaces.
 
 Available components:
 
-- `CollectionCardRow`
 - `CollectionSummary`
 - `SetSummary`
 
@@ -119,13 +130,14 @@ import { SetSummary } from "@cardspark/ui/collecting";
 />;
 ```
 
+Card preview arrays such as `missingCards` and `chaseCards` require a stable `id` on every item.
+
 ## Market
 
-Use `@cardspark/ui/market` for value movement, market rows, and history selection helpers.
+Use `@cardspark/ui/market` for market-history selection helpers used alongside the higher-order card components.
 
 Available components and helpers:
 
-- `MarketCardRow`
 - `resolveMarketHistoryDataSet`
 - `getMarketHistoryGraderValue`, `getMarketHistoryGraderValues`
 - `getNumericGradeValue`, `isUngradedGrader`
@@ -133,19 +145,22 @@ Available components and helpers:
 Example:
 
 ```tsx
-import { MarketCardRow } from "@cardspark/ui/market";
+import { CardRow } from "@cardspark/ui/core";
 
-<MarketCardRow
-  name="Lugia V"
-  set="Silver Tempest"
-  setCode="SIT"
-  number="186/195"
-  rarity="Special Illustration Rare"
-  condition="Near Mint"
-  value="$214.75"
-  delta="+5.4%"
-  imageUrl="https://images.pokemontcg.io/swsh12/186_hires.png"
-  chartValues={[18, 19, 21, 20, 23, 24, 27]}
+<CardRow
+  format="market"
+  card={{
+    id: "swsh12-186",
+    name: "Lugia V",
+    set: "Silver Tempest",
+    setCode: "SIT",
+    number: "186/195",
+    rarity: "Special Illustration Rare",
+    condition: "Near Mint",
+    marketValue: "$214.75",
+    delta: "+5.4%",
+    imageUrl: "https://images.pokemontcg.io/swsh12/186_hires.png"
+  }}
 />;
 ```
 
@@ -160,14 +175,47 @@ Available layouts:
 
 `CardList` composes `FilterBar` with a switchable `CardGrid` and `CardStack` surface for collection, set, and search views.
 
-`CardDetail` expects card identity, facts, market data, history data, and collection state.
+Use `onCardClick={(card, index, event) => ...}` for shared card navigation in both views. `renderTile` and `renderRow` remain available when a view needs fully custom rendering.
+
+`CardDetail` requires only card identity. Facts, collection state, and market history are independent optional sections. Facts use explicit kinds, and condition and grade selections have separate state.
+
+```tsx
+<CardDetail
+  card={{
+    id: "swsh12-186",
+    name: "Lugia V",
+    set: "Silver Tempest",
+    setCode: "SIT",
+    number: "186/195",
+    rarity: "Special Illustration Rare",
+    imageUrl: "https://images.pokemontcg.io/swsh12/186_hires.png"
+  }}
+  facts={[
+    { kind: "type", value: "Colorless" },
+    { kind: "weakness", value: "Lightning x2" },
+    { kind: "rules", value: "This Pokémon cannot attack during your next turn." }
+  ]}
+  graders={["Ungraded", "PSA"]}
+  activeGrader="Ungraded"
+  conditions={["Near Mint", "Lightly Played"]}
+  activeCondition="Near Mint"
+  variants={["Normal", "Holo"]}
+  activeVariant="Holo"
+  market={{ label: "Market price", price: "$214.75", deltaToday: "+5.4%" }}
+  history={{ values: [201.5, 208.25, 214.75], range: "1M", ranges: ["1W", "1M", "1Y"] }}
+  onConditionChange={setCondition}
+  onGradeChange={setGrade}
+/>
+```
 
 ## Filters
 
 Use `FilterBar` for compact source, condition, grader, finish, sort, and inventory filters.
 
 ```tsx
-import { FilterBar, formatConditionLabel } from "@cardspark/ui/core";
+import { FilterBar } from "@cardspark/ui/core";
+import { formatConditionLabel } from "@cardspark/ui/utils";
+import type { FilterBarItem } from "@cardspark/ui/core";
 
 const conditionOptions = ["Near Mint", "Lightly Played", "Damaged"].map((condition) => ({
   value: condition,
@@ -175,21 +223,29 @@ const conditionOptions = ["Near Mint", "Lightly Played", "Damaged"].map((conditi
   compactLabel: formatConditionLabel(condition, "code")
 }));
 
-<FilterBar
-  filters={[
-    { id: "source", label: "Source", value: "All", options: ["All", "TCGPlayer", "Ebay"] },
-    { id: "condition", label: "Condition", value: "Lightly Played", options: conditionOptions, compact: true }
-  ]}
-  onFilterChange={(id, value) => setFilters((filters) => ({ ...filters, [id]: value }))}
-/>;
+const filters: FilterBarItem[] = [
+  { id: "source", label: "Source", value: "All", options: ["All", "TCGPlayer", "Ebay"] },
+  {
+    id: "condition",
+    label: "Condition",
+    multiple: true,
+    values: ["Lightly Played"],
+    options: ["All", ...conditionOptions],
+    compact: true
+  }
+];
+
+<FilterBar filters={filters} onChange={(id, selection) => updateFilter(id, selection)} />;
 ```
+
+`multiple: true` requires `values`; single-select filters require `value`. The `onChange` selection is correspondingly `string[]` or `string`. Use `allOptionValue` when the universal option has a value other than `"All"`.
 
 ## React And Next.js Notes
 
-- Components are React components and require `react >= 18`.
-- Components with event handlers must be rendered from a Client Component in Next.js.
-- Do not pass event handlers from a Server Component into `FilterBar`, `CardRow`, `MarketCardRow`, `CollectionCardRow`, or `SetSummary`.
-- It is safe to render passive rows/cards from Server Components when no event handler props are supplied.
+- Components require `react >= 18` and are published as Client Components.
+- Server Components may render them with serializable props, but event handlers must originate in a Client Component.
+- `@cardspark/ui/utils` and `@cardspark/ui/market` are server-safe and may be called directly from Server Components.
+- Major surface components forward their root-element ref and accept the corresponding native DOM props for focus, measurement, analytics, and test selectors.
 
 ## Theming
 
@@ -227,7 +283,7 @@ Scope a theme with `data-cardspark-theme`:
 
 ```tsx
 <section data-cardspark-theme="basement">
-  <CardTile {...card} />
+  <CardTile card={card} />
 </section>
 ```
 

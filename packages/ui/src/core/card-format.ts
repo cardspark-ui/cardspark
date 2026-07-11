@@ -2,8 +2,16 @@ import type { ReactNode } from "react";
 
 export type CardPresentationFormat = "market" | "collection";
 
-export type TradingCardData = {
-  name?: string;
+/** Stable identity shared by every card-shaped public API. */
+export type CardId = string | number;
+
+export type CardIdentity = {
+  id: CardId;
+  name: string;
+};
+
+/** Canonical card data accepted by list, row, tile, and detail surfaces. */
+export type TradingCardData = CardIdentity & {
   set?: string;
   setCode?: string;
   number?: string;
@@ -21,6 +29,12 @@ export type TradingCardData = {
   deltaPeriod?: string;
   dateAdded?: string;
   costBasis?: string;
+  language?: string;
+  series?: string;
+  type?: string;
+  types?: string[];
+  hp?: string;
+  stage?: string;
 };
 
 export type CardPresentationBaseProps = {
@@ -32,11 +46,12 @@ export type CardPresentationBaseProps = {
   number?: string;
   rarity?: string;
   condition?: string;
+  finish?: string;
+  finishCode?: string;
   variant?: string;
   imageUrl?: string;
   imageAlt?: string;
   value?: string;
-  price?: string;
   delta?: string;
   deltaPeriod?: string;
   dateAdded?: string;
@@ -51,6 +66,8 @@ export type ResolvedCardPresentation = {
   number?: string;
   rarity?: string;
   condition?: string;
+  finish?: string;
+  finishCode?: string;
   variant?: string;
   imageUrl?: string;
   imageAlt?: string;
@@ -74,11 +91,12 @@ export function resolveCardPresentation({
   number,
   rarity,
   condition,
+  finish,
+  finishCode,
   variant,
   imageUrl,
   imageAlt,
   value,
-  price,
   delta,
   deltaPeriod,
   dateAdded,
@@ -92,10 +110,12 @@ export function resolveCardPresentation({
     number: number ?? card?.number,
     rarity: rarity ?? card?.rarity,
     condition: condition ?? card?.condition,
+    finish: finish ?? card?.finish,
+    finishCode: finishCode ?? card?.finishCode,
     variant: variant ?? card?.variant,
     imageUrl: imageUrl ?? card?.imageUrl,
     imageAlt: imageAlt ?? card?.imageAlt,
-    value: value ?? getFormatValue(format, card) ?? price,
+    value: value ?? getFormatValue(format, card),
     delta: delta ?? card?.delta,
     deltaPeriod: deltaPeriod ?? card?.deltaPeriod,
     dateAdded: dateAdded ?? card?.dateAdded,

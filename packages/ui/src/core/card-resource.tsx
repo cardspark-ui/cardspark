@@ -1,5 +1,16 @@
 import { MetadataTooltip } from "./rarity";
 import type { TcgVariant } from "./rarity";
+import colorlessEnergyUrl from "../assets/pokemon/energy/colorless.png";
+import darknessEnergyUrl from "../assets/pokemon/energy/darkness.png";
+import dragonEnergyUrl from "../assets/pokemon/energy/dragon.png";
+import fairyEnergyUrl from "../assets/pokemon/energy/fairy.png";
+import fightingEnergyUrl from "../assets/pokemon/energy/fighting.png";
+import fireEnergyUrl from "../assets/pokemon/energy/fire.png";
+import grassEnergyUrl from "../assets/pokemon/energy/grass.png";
+import lightningEnergyUrl from "../assets/pokemon/energy/lightning.png";
+import metalEnergyUrl from "../assets/pokemon/energy/metal.png";
+import psychicEnergyUrl from "../assets/pokemon/energy/psychic.png";
+import waterEnergyUrl from "../assets/pokemon/energy/water.png";
 
 export type CardResourceType =
   | "Grass"
@@ -45,18 +56,22 @@ const POKEMON_ENERGY_TYPES: CardResourceType[] = [
   "Colorless"
 ];
 
+function getBundledAssetUrl(asset: string | { src: string }) {
+  return typeof asset === "string" ? asset : asset.src;
+}
+
 const ENERGY_ASSET_URLS: Record<CardResourceType, string> = {
-  Colorless: new URL("../assets/pokemon/energy/colorless.png", import.meta.url).toString(),
-  Darkness: new URL("../assets/pokemon/energy/darkness.png", import.meta.url).toString(),
-  Dragon: new URL("../assets/pokemon/energy/dragon.png", import.meta.url).toString(),
-  Fairy: new URL("../assets/pokemon/energy/fairy.png", import.meta.url).toString(),
-  Fighting: new URL("../assets/pokemon/energy/fighting.png", import.meta.url).toString(),
-  Fire: new URL("../assets/pokemon/energy/fire.png", import.meta.url).toString(),
-  Grass: new URL("../assets/pokemon/energy/grass.png", import.meta.url).toString(),
-  Lightning: new URL("../assets/pokemon/energy/lightning.png", import.meta.url).toString(),
-  Metal: new URL("../assets/pokemon/energy/metal.png", import.meta.url).toString(),
-  Psychic: new URL("../assets/pokemon/energy/psychic.png", import.meta.url).toString(),
-  Water: new URL("../assets/pokemon/energy/water.png", import.meta.url).toString()
+  Colorless: getBundledAssetUrl(colorlessEnergyUrl),
+  Darkness: getBundledAssetUrl(darknessEnergyUrl),
+  Dragon: getBundledAssetUrl(dragonEnergyUrl),
+  Fairy: getBundledAssetUrl(fairyEnergyUrl),
+  Fighting: getBundledAssetUrl(fightingEnergyUrl),
+  Fire: getBundledAssetUrl(fireEnergyUrl),
+  Grass: getBundledAssetUrl(grassEnergyUrl),
+  Lightning: getBundledAssetUrl(lightningEnergyUrl),
+  Metal: getBundledAssetUrl(metalEnergyUrl),
+  Psychic: getBundledAssetUrl(psychicEnergyUrl),
+  Water: getBundledAssetUrl(waterEnergyUrl)
 };
 
 export function CardBadgeTypeView({

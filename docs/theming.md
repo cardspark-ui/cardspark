@@ -20,7 +20,7 @@ Use `data-cardspark-theme` when a theme should be scoped to part of an app.
 
 ```tsx
 <section data-cardspark-theme="basement">
-  <CardTile {...card} />
+  <CardTile card={card} />
 </section>
 ```
 

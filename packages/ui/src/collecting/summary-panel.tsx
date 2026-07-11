@@ -6,7 +6,19 @@ import { useAdaptivePreviewCount } from "./adaptive-preview-count";
 import { MarketSparkline } from "../market/sparkline";
 import { CollectionValueContent, DEFAULT_VALUE_PANEL_RANGE, DEFAULT_VALUE_PANEL_RANGES } from "../market/value-panel-content";
 import type { CollectionValueRangeData } from "../market/value-panel-content";
-import type { ReactNode } from "react";
+import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { CardId } from "../core/card-format";
+
+export type CollectionSummaryThumbnail = {
+  id: CardId;
+  name: string;
+  price?: string;
+  delta?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  rarity?: string;
+};
 
 export type CollectionSummaryMetric = {
   label: string;
@@ -14,17 +26,10 @@ export type CollectionSummaryMetric = {
   description?: string;
   delta?: string;
   showDeltaSymbol?: boolean;
-  thumbnails?: Array<{
-    name: string;
-    price?: string;
-    delta?: string;
-    imageUrl?: string;
-    imageAlt?: string;
-    rarity?: string;
-  }>;
+  thumbnails?: CollectionSummaryThumbnail[];
 };
 
-export type CollectionSummaryProps = {
+export type CollectionSummaryProps = Omit<ComponentPropsWithoutRef<"section">, "children" | "title"> & {
   title: string;
   value: string;
   delta: string;
@@ -45,14 +50,16 @@ export type CollectionSummaryProps = {
   previousCloseValue?: number;
   emptyLabel?: string;
   onRangeChange?: (range: string) => void;
-  metrics: CollectionSummaryMetric[];
+  metrics?: CollectionSummaryMetric[];
 };
 
 const COLLECTION_SUMMARY_THUMBNAIL_LIMIT = 7;
 const COLLECTION_SUMMARY_THUMBNAIL_FALLBACK_WIDTH = 22;
 const COLLECTION_SUMMARY_THUMBNAIL_GAP_FALLBACK = 8;
 
-export function CollectionSummary({
+/** Collection value, history, and metric summary panel. */
+export const CollectionSummary = forwardRef<HTMLElement, CollectionSummaryProps>(function CollectionSummary({
+  className,
   title,
   value,
   delta,
@@ -73,8 +80,9 @@ export function CollectionSummary({
   previousCloseValue,
   emptyLabel,
   onRangeChange,
-  metrics
-}: CollectionSummaryProps) {
+  metrics = [],
+  ...sectionProps
+}: CollectionSummaryProps, ref) {
   const resolvedRanges = ranges ?? getCollectionSummaryRanges(chartRangeData);
   const resolvedActiveRange = getCollectionSummaryActiveRange(activeRange, resolvedRanges, chartRangeData, chartValues);
   const activeRangeData = chartRangeData?.[resolvedActiveRange];
@@ -87,7 +95,12 @@ export function CollectionSummary({
     ) : null);
 
   return (
-    <section className="cs-collection-summary">
+    <section
+      {...sectionProps}
+      ref={ref}
+      className={["cs-collection-summary", className].filter(Boolean).join(" ")}
+      data-has-metrics={metrics.length ? "true" : "false"}
+    >
       <div className="cs-collection-summary-chart">
         <CollectionValueContent
           title={title}
@@ -114,14 +127,16 @@ export function CollectionSummary({
           {renderedChart}
         </CollectionValueContent>
       </div>
-      <dl className="cs-collection-summary-metrics" aria-label={`${title} summary`}>
-        {metrics.map((metric) => (
-          <CollectionSummaryMetricItem metric={metric} key={metric.label} />
-        ))}
-      </dl>
+      {metrics.length ? (
+        <dl className="cs-collection-summary-metrics" aria-label={`${title} summary`}>
+          {metrics.map((metric) => (
+            <CollectionSummaryMetricItem metric={metric} key={metric.label} />
+          ))}
+        </dl>
+      ) : null}
     </section>
   );
-}
+});
 
 function getCollectionSummaryRanges(chartRangeData?: Partial<Record<string, CollectionValueRangeData>>) {
   const chartRanges = chartRangeData ? Object.keys(chartRangeData) : [];
@@ -208,7 +223,7 @@ function CollectionSummaryThumbnailMetric({
               className="cs-metadata-tooltip-trigger cs-collection-summary-thumbnail-tooltip"
               data-tooltip="true"
               aria-label={thumbnail.name}
-              key={thumbnail.name}
+              key={thumbnail.id}
             >
               <CardArt
                 src={thumbnail.imageUrl}

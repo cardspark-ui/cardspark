@@ -124,8 +124,10 @@ export function MetadataTooltip({
     <span
       {...triggerProps}
       className={classes}
+      aria-label={!disabled && typeof label === "string" ? label : undefined}
       data-tooltip={disabled ? undefined : "true"}
       data-tooltip-visibility={!disabled && visibility !== "always" ? visibility : undefined}
+      tabIndex={disabled ? undefined : 0}
     >
       {children}
       {disabled ? null : (

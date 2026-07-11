@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DeltaValue } from "../core/delta-value";
 import { MarketSparkline } from "./sparkline";
 import type { DeltaTrend } from "../core/delta-value";
-import type { CSSProperties, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from "react";
 
 const SPARKLINE_WIDTH = 112;
 const SPARKLINE_HEIGHT = 34;
@@ -257,6 +257,7 @@ export function CollectionValueContent({
   summaryAction,
   hideSummaryTitle = true,
   onRangeChange,
+  onSettingsClick,
   renderChart
 }: {
   title: string;
@@ -288,6 +289,7 @@ export function CollectionValueContent({
   summaryAction?: ReactNode;
   hideSummaryTitle?: boolean;
   onRangeChange?: (range: string) => void;
+  onSettingsClick?: () => void;
   renderChart?: (data: {
     values?: number[];
     previousCloseValue?: number;
@@ -317,6 +319,7 @@ export function CollectionValueContent({
   const selectedPointXPositions = selectedRangeData?.pointXPositions ?? pointXPositions;
   const hasValueSeries = Array.isArray(selectedValues);
   const hasSelectedData = hasValueSeries ? selectedValues.length > 0 : true;
+  const hasInteractivePoints = Boolean(selectedValues?.length);
   const selectedEmptyLabel = selectedRangeData?.emptyLabel ?? emptyLabel;
 
   useEffect(() => {
@@ -336,7 +339,9 @@ export function CollectionValueContent({
     selectedValues?.length && typeof selectedPreviousCloseValue === "number"
       ? (getSparklineY(selectedValues, selectedPreviousCloseValue, selectedMinValue, selectedMaxValue) / SPARKLINE_HEIGHT) * 100
       : selectedPreviousClosePosition;
-  const activeIndex = selectedValues?.length ? Math.min(hoveredIndex ?? 0, selectedValues.length - 1) : 0;
+  const activeIndex = selectedValues?.length
+    ? Math.min(hoveredIndex ?? selectedValues.length - 1, selectedValues.length - 1)
+    : 0;
 
   useEffect(() => {
     const bars = plotRef.current?.querySelectorAll<HTMLSpanElement>(".cs-price-history-volume span");
@@ -429,6 +434,32 @@ export function CollectionValueContent({
     }
   }
 
+  function handleChartKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!selectedValues?.length) {
+      return;
+    }
+
+    const lastIndex = selectedValues.length - 1;
+    let nextIndex: number | null = null;
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      nextIndex = Math.max((hoveredIndex ?? lastIndex) - 1, 0);
+    } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      nextIndex = Math.min((hoveredIndex ?? lastIndex) + 1, lastIndex);
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = lastIndex;
+    }
+
+    if (nextIndex === null) {
+      return;
+    }
+
+    event.preventDefault();
+    setHoveredIndex(nextIndex);
+  }
+
   return (
     <>
       <header className="cs-value-panel-summary" data-has-action={summaryAction ? "true" : "false"}>
@@ -450,7 +481,26 @@ export function CollectionValueContent({
         className="cs-value-panel-chart"
         data-has-data={hasSelectedData}
         style={chartStyle}
-        tabIndex={hasSelectedData ? 0 : undefined}
+        role={hasInteractivePoints ? "slider" : undefined}
+        aria-label={hasInteractivePoints ? `${title} chart point` : undefined}
+        aria-valuemin={hasInteractivePoints ? 0 : undefined}
+        aria-valuemax={hasInteractivePoints ? selectedValues!.length - 1 : undefined}
+        aria-valuenow={hasInteractivePoints ? activeIndex : undefined}
+        aria-valuetext={
+          hasInteractivePoints
+            ? `${selectedHoverLabels?.[activeIndex] ?? selectedHoverLabel}: ${activeValue}, ${activeDelta}`
+            : undefined
+        }
+        tabIndex={hasInteractivePoints ? 0 : undefined}
+        onFocus={() => {
+          if (selectedValues?.length) {
+            setHoveredIndex(selectedValues.length - 1);
+          }
+        }}
+        onBlur={() => {
+          setHoveredIndex(null);
+        }}
+        onKeyDown={handleChartKeyDown}
         onPointerMove={handlePointerMove}
         onPointerOut={handlePointerOut}
         onPointerLeave={() => {
@@ -489,12 +539,19 @@ export function CollectionValueContent({
               </button>
             ))}
           </div>
-          <button className="cs-value-panel-settings" type="button" aria-label={`${title} range settings`}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-4v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
-            </svg>
-          </button>
+          {onSettingsClick ? (
+            <button
+              className="cs-value-panel-settings"
+              type="button"
+              aria-label={`${title} range settings`}
+              onClick={onSettingsClick}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5v.2h-4v-.2a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3h4v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
+              </svg>
+            </button>
+          ) : null}
         </div>
       ) : null}
       {hasSelectedData && footerMetrics?.length ? (

@@ -4,7 +4,9 @@ import { CardArt } from "../core/card-art";
 import { DeltaValue } from "../core/delta-value";
 import { RarityMark } from "../core/rarity";
 import { useAdaptivePreviewCount } from "./adaptive-preview-count";
-import type { CSSProperties } from "react";
+import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef, CSSProperties, MouseEventHandler } from "react";
+import type { CardId } from "../core/card-format";
 
 export type SetSummaryBreakdownItem = {
   label: string;
@@ -13,6 +15,7 @@ export type SetSummaryBreakdownItem = {
 };
 
 export type SetSummaryPreviewCard = {
+  id: CardId;
   name: string;
   value?: string;
   price?: string;
@@ -28,7 +31,7 @@ export type SetSummaryChaseCard = SetSummaryPreviewCard;
 export type SetSummaryMode = "standard" | "master";
 export type SetSummaryStatus = "ready" | "loading" | "error" | "empty";
 
-export type SetSummaryProps = {
+export type SetSummaryProps = Omit<ComponentPropsWithoutRef<"article">, "children" | "onClick"> & {
   name: string;
   code?: string;
   game?: string;
@@ -51,14 +54,16 @@ export type SetSummaryProps = {
   loadingLabel?: string;
   errorLabel?: string;
   emptyLabel?: string;
-  onClick?: () => void;
+  onClick?: MouseEventHandler<HTMLElement>;
 };
 
 const SET_SUMMARY_PREVIEW_LIMIT = 7;
 const SET_SUMMARY_PREVIEW_CARD_FALLBACK_WIDTH = 22;
 const SET_SUMMARY_PREVIEW_GAP_FALLBACK = 8;
 
-export function SetSummary({
+/** Set completion summary with optional chase, missing, collected, and import previews. */
+export const SetSummary = forwardRef<HTMLElement, SetSummaryProps>(function SetSummary({
+  className,
   name,
   code,
   game,
@@ -81,8 +86,9 @@ export function SetSummary({
   loadingLabel = "Loading set summary",
   errorLabel = "Set summary unavailable",
   emptyLabel = "No set summary yet",
-  onClick
-}: SetSummaryProps) {
+  onClick,
+  ...articleProps
+}: SetSummaryProps, ref) {
   const chaseOwnedCount = chaseCards.filter((card) => card.owned !== false).length;
   const activeProgress =
     mode === "master" && typeof masterOwned === "number" && typeof masterTotal === "number"
@@ -169,20 +175,22 @@ export function SetSummary({
 
   return (
     <article
-      className="cs-set-summary"
+      {...articleProps}
+      ref={ref}
+      className={["cs-set-summary", className].filter(Boolean).join(" ")}
       data-status={resolvedStatus}
       data-complete={isComplete ? "true" : undefined}
       data-importing={showImportingCards ? "true" : undefined}
       data-interactive={onClick ? "true" : undefined}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onClick={onClick ? () => onClick() : undefined}
+      onClick={onClick}
       onKeyDown={
         onClick
           ? (event) => {
               if (event.key !== "Enter" && event.key !== " ") return;
               event.preventDefault();
-              onClick();
+              event.currentTarget.click();
             }
           : undefined
       }
@@ -296,7 +304,7 @@ export function SetSummary({
       ) : null}
     </article>
   );
-}
+});
 
 function useAdaptiveSetSummaryPreviewCount<ContainerElement extends HTMLElement = HTMLElement>(
   maxCount: number,
@@ -378,7 +386,7 @@ function SetSummaryImportRail({
             data-tooltip="true"
             data-owned="true"
             aria-label={card.name}
-            key={card.name}
+            key={card.id}
           >
             <CardArt
               src={card.imageUrl}
@@ -431,7 +439,7 @@ function SetSummaryCardPreviews({
           data-tooltip="true"
           data-owned={card.owned === false ? "false" : "true"}
           aria-label={card.name}
-          key={card.name}
+          key={card.id}
         >
           <CardArt
             src={card.imageUrl}

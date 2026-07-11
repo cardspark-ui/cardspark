@@ -5,7 +5,8 @@ import { DeltaValue } from "./delta-value";
 import { MetadataTooltip } from "./rarity";
 import type { DeltaValueProps } from "./delta-value";
 import type { CardPresentationBaseProps } from "./card-format";
-import type { ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from "react";
+import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from "react";
 
 export type CardRowMetadataItem = {
   key: string;
@@ -18,37 +19,43 @@ export type CardRowMetadataItem = {
   tooltip?: boolean;
 };
 
-export type CardRowProps = CardPresentationBaseProps & {
-  nameContent?: ReactNode;
-  imageRarity?: string;
-  metadata?: CardRowMetadataItem[];
-  deltaReferenceValue?: string;
-  deltaSecondaryDisplay?: DeltaValueProps["secondaryDisplay"];
-  chart?: ReactNode;
-  details?: ReactNode;
-  action?: ReactNode;
-  active?: boolean;
-  pricePosition?: "at-market" | "below-market" | "above-market";
-  ariaLabel?: string;
-  className?: string;
-  imageClassName?: string;
-  onClick?: () => void;
-};
+export type CardRowProps = CardPresentationBaseProps &
+  Omit<ComponentPropsWithoutRef<"article">, "aria-label" | "children" | "className" | "onClick"> & {
+    nameContent?: ReactNode;
+    imageRarity?: string;
+    metadata?: CardRowMetadataItem[];
+    deltaReferenceValue?: string;
+    deltaSecondaryDisplay?: DeltaValueProps["secondaryDisplay"];
+    chart?: ReactNode;
+    details?: ReactNode;
+    action?: ReactNode;
+    active?: boolean;
+    pricePosition?: "at-market" | "below-market" | "above-market";
+    ariaLabel?: string;
+    className?: string;
+    imageClassName?: string;
+    onClick?: (event: MouseEvent<HTMLElement>) => void;
+  };
 
 export type CardStackProps = ComponentPropsWithoutRef<"div"> & {
   children: ReactNode;
   className?: string;
 };
 
-export function CardStack({ children, className, ...props }: CardStackProps) {
+/** Vertical container for `CardRow` components. Forwards its ref and native div props. */
+export const CardStack = forwardRef<HTMLDivElement, CardStackProps>(function CardStack(
+  { children, className, ...props },
+  ref
+) {
   return (
-    <div className={["cs-card-stack", className].filter(Boolean).join(" ")} {...props}>
+    <div ref={ref} className={["cs-card-stack", className].filter(Boolean).join(" ")} {...props}>
       {children}
     </div>
   );
-}
+});
 
-export function CardRow({
+/** Responsive card summary row with optional navigation, trend, and trailing action content. */
+export const CardRow = forwardRef<HTMLElement, CardRowProps>(function CardRow({
   format,
   card,
   name,
@@ -57,6 +64,8 @@ export function CardRow({
   number,
   rarity,
   condition,
+  finish,
+  finishCode,
   variant,
   nameContent,
   imageUrl,
@@ -64,7 +73,6 @@ export function CardRow({
   imageRarity,
   metadata,
   value,
-  price,
   delta,
   deltaReferenceValue,
   deltaSecondaryDisplay,
@@ -79,8 +87,9 @@ export function CardRow({
   ariaLabel,
   className,
   imageClassName,
-  onClick
-}: CardRowProps) {
+  onClick,
+  ...articleProps
+}: CardRowProps, ref) {
   const resolvedCard = resolveCardPresentation({
     format,
     card,
@@ -90,11 +99,12 @@ export function CardRow({
     number,
     rarity,
     condition,
+    finish,
+    finishCode,
     variant,
     imageUrl,
     imageAlt,
     value,
-    price,
     delta,
     deltaPeriod,
     dateAdded,
@@ -107,6 +117,8 @@ export function CardRow({
       number: resolvedCard.number,
       rarity: resolvedCard.rarity,
       condition: resolvedCard.condition,
+      finish: resolvedCard.finish,
+      finishCode: resolvedCard.finishCode,
       variant: resolvedCard.variant
     });
   const resolvedDetails = getCardFormatDetails(resolvedCard, { details });
@@ -121,27 +133,47 @@ export function CardRow({
   const hasTrailing = Boolean(resolvedCard.value || resolvedCard.delta || chart || action);
   const isInteractive = Boolean(onClick);
 
-  function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (!onClick || (event.key !== "Enter" && event.key !== " ")) {
+  function handleClick(event: MouseEvent<HTMLElement>) {
+    if (!onClick) {
       return;
     }
 
-    event.preventDefault();
-    onClick();
+    const target = event.target;
+
+    if (
+      target instanceof Element &&
+      target.closest(
+        ".cs-card-row-action, a, button, input, select, textarea, summary, [role='button'], [role='link']"
+      )
+    ) {
+      return;
+    }
+
+    onClick(event);
   }
 
   return (
     <article
+      ref={ref}
+      {...articleProps}
       className={classes}
       data-active={active ? "true" : undefined}
       data-format={resolvedCard.format}
       data-interactive={isInteractive ? "true" : undefined}
-      role={isInteractive ? "button" : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
       aria-label={ariaLabel}
-      onClick={onClick ? () => onClick() : undefined}
-      onKeyDown={isInteractive ? handleKeyDown : undefined}
+      onClick={isInteractive ? handleClick : undefined}
     >
+      {onClick ? (
+        <button
+          className="cs-card-row-interaction"
+          type="button"
+          aria-label={ariaLabel ?? `View ${resolvedCard.name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClick(event);
+          }}
+        />
+      ) : null}
       {resolvedCard.imageUrl ? (
         <CardArt
           src={resolvedCard.imageUrl}
@@ -173,12 +205,21 @@ export function CardRow({
               ) : null}
             </div>
           ) : null}
-          {action ? <div className="cs-card-row-action">{action}</div> : null}
+          {action ? (
+            <div
+              className="cs-card-row-action"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {action}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </article>
   );
-}
+});
 
 function renderCardRowDetails(details: ReactNode) {
   if (typeof details !== "string" || !details.includes(" • ")) {
@@ -279,6 +320,8 @@ export function getTradingCardMetadata({
   number,
   rarity,
   condition,
+  finish,
+  finishCode,
   variant
 }: {
   set?: string;
@@ -286,6 +329,8 @@ export function getTradingCardMetadata({
   number?: string;
   rarity?: string;
   condition?: string;
+  finish?: string;
+  finishCode?: string;
   variant?: string;
 }): CardRowMetadataItem[] {
   const metadataItems: Array<CardRowMetadataItem | null> = [
@@ -329,12 +374,12 @@ export function getTradingCardMetadata({
           tooltip: false
         }
       : null,
-    variant
+    finish || variant
       ? {
-          key: "variant",
-          label: <CardBadge type="foil" card={{ finish: variant }} display="full" tooltip={false} />,
-          shortText: <CardBadge type="foil" card={{ finish: variant, finishCode: getVariantBadgeCode(variant) }} />,
-          fullText: <CardBadge type="foil" card={{ finish: variant }} display="full" />,
+          key: "finish",
+          label: <CardBadge type="foil" card={{ finish: finish ?? variant }} display="full" tooltip={false} />,
+          shortText: <CardBadge type="foil" card={{ finish: finish ?? variant, finishCode: finishCode ?? getVariantBadgeCode(finish ?? variant ?? "") }} />,
+          fullText: <CardBadge type="foil" card={{ finish: finish ?? variant }} display="full" />,
           visibility: "compact",
           tooltip: false
         }

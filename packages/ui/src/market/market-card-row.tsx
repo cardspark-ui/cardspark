@@ -81,8 +81,7 @@ export function MarketCardRow({
       variant={variant}
       imageUrl={imageUrl}
       imageAlt={imageAlt}
-      value={value}
-      price={price}
+      value={value ?? price}
       delta={delta}
       deltaPeriod={deltaPeriod}
       chart={resolvedChart}

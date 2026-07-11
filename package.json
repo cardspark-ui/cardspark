@@ -10,6 +10,7 @@
   "scripts": {
     "build": "npm run build:packages",
     "build:packages": "npm run build -w @cardspark/tokens && npm run build -w @cardspark/ui",
+    "test": "npm run typecheck && npm run test:package -w @cardspark/ui",
     "typecheck": "npm run build -w @cardspark/tokens && npm run build -w @cardspark/ui && npm run typecheck --workspaces --if-present",
     "lint": "npm run build -w @cardspark/tokens && npm run build -w @cardspark/ui && npm run lint --workspaces --if-present"
   },

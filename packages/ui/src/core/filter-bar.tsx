@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 export type FilterOption = {
   value: string;
@@ -10,41 +10,57 @@ export type FilterOption = {
   disabled?: boolean;
 };
 
-export type FilterBarItem = {
+type FilterBarItemBase = {
   id: string;
   label: string;
-  value: string;
-  values?: string[];
   options: Array<string | FilterOption>;
+  allOptionValue?: string;
   compact?: boolean;
   className?: string;
   formatValue?: (value: string) => string;
   formatOption?: (value: string) => string;
 };
 
-export type FilterBarProps = {
+export type SingleSelectFilterBarItem = FilterBarItemBase & {
+  multiple?: false;
+  value: string;
+  values?: never;
+};
+
+export type MultiSelectFilterBarItem = FilterBarItemBase & {
+  multiple: true;
+  values: string[];
+  value?: never;
+};
+
+/** A filter's selection shape is determined by its `multiple` discriminator. */
+export type FilterBarItem = SingleSelectFilterBarItem | MultiSelectFilterBarItem;
+export type FilterBarSelection = string | string[];
+
+export type FilterBarProps = Omit<ComponentPropsWithoutRef<"section">, "children" | "onChange"> & {
   filters: FilterBarItem[];
-  onFilterChange?: (id: string, value: string) => void;
-  onFilterMultiChange?: (id: string, values: string[]) => void;
-  multiSelect?: boolean;
+  onChange?: (id: string, selection: FilterBarSelection) => void;
   actions?: ReactNode;
   ariaLabel?: string;
   className?: string;
 };
 
-export function FilterBar({
+/** Controlled single- and multi-select filter controls with responsive overflow handling. */
+export const FilterBar = forwardRef<HTMLElement, FilterBarProps>(function FilterBar({
   filters,
-  onFilterChange,
-  onFilterMultiChange,
-  multiSelect = false,
+  onChange,
   actions,
   ariaLabel = "Filters",
-  className
-}: FilterBarProps) {
+  className,
+  ...sectionProps
+}: FilterBarProps, forwardedRef) {
+  const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const filterBarRef = useRef<HTMLElement>(null);
   const filterControlsRef = useRef<HTMLDivElement>(null);
   const [pendingMultiValuesById, setPendingMultiValuesById] = useState<Record<string, string[]>>({});
   const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useImperativeHandle(forwardedRef, () => filterBarRef.current as HTMLElement);
 
   useEffect(() => {
     function handleDocumentPointerDown(event: PointerEvent) {
@@ -98,10 +114,11 @@ export function FilterBar({
       resizeObserver.disconnect();
       window.removeEventListener("resize", measureOverflow);
     };
-  }, [filters, multiSelect, pendingMultiValuesById]);
+  }, [filters, pendingMultiValuesById]);
 
   return (
     <section
+      {...sectionProps}
       className={["cs-filter-bar", className].filter(Boolean).join(" ")}
       aria-label={ariaLabel}
       data-overflowing={isOverflowing ? "true" : undefined}
@@ -110,9 +127,11 @@ export function FilterBar({
       <div className="cs-filter-bar-controls" ref={filterControlsRef}>
         {filters.map((filter) => {
           const options = filter.options.map(normalizeFilterOption);
-          const useMultiSelect = multiSelect && filter.id !== "grader" && options.length > 2;
-          const selectedOption = options.find((option) => option.value === filter.value);
-          const selectedValues = useMultiSelect
+          const useMultiSelect = filter.multiple === true;
+          const selectedOption = filter.multiple
+            ? undefined
+            : options.find((option) => option.value === filter.value);
+          const selectedValues = filter.multiple
             ? normalizeSelectedFilterValues(filter, options, getSelectedFilterValues(filter))
             : getSelectedFilterValues(filter);
           const selectedDisplayText = useMultiSelect
@@ -120,14 +139,14 @@ export function FilterBar({
             : getFilterValueLabel(filter, selectedOption);
           const isAllValue = useMultiSelect
             ? isAllFilterSelection(filter, options, selectedValues)
-            : selectedDisplayText.trim().toLowerCase().startsWith("all");
+            : Boolean(selectedOption && isAllFilterOption(filter, selectedOption));
           const controlDisplayContent = isAllValue ? (
             <>
               +
               <span className="cs-filter-add-label">{filter.label}</span>
             </>
           ) : selectedDisplayText;
-          const controlId = `cs-filter-${filter.id.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+          const controlId = `cs-filter-${instanceId}-${filter.id.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
           const labelId = `${controlId}-label`;
 
           if (useMultiSelect) {
@@ -208,7 +227,7 @@ export function FilterBar({
                           className="cs-filter-menu-apply"
                           type="button"
                           onClick={(event) => {
-                            onFilterMultiChange?.(filter.id, pendingAppliedValues);
+                            onChange?.(filter.id, pendingAppliedValues);
                             event.currentTarget.closest("details")?.removeAttribute("open");
                           }}
                         >
@@ -228,7 +247,7 @@ export function FilterBar({
                               ...currentValues,
                               [filter.id]: []
                             }));
-                            onFilterMultiChange?.(filter.id, nextValues);
+                            onChange?.(filter.id, nextValues);
                             event.currentTarget.closest("details")?.removeAttribute("open");
                           }}
                         >
@@ -260,7 +279,7 @@ export function FilterBar({
                   value={filter.value}
                   aria-label={filter.label}
                   onChange={(event) => {
-                    onFilterChange?.(filter.id, event.target.value);
+                    onChange?.(filter.id, event.target.value);
                     event.currentTarget.blur();
                   }}
                 >
@@ -284,14 +303,14 @@ export function FilterBar({
       {actions ? <div className="cs-filter-actions">{actions}</div> : null}
     </section>
   );
-}
+});
 
 function normalizeFilterOption(option: string | FilterOption): FilterOption {
   return typeof option === "string" ? { value: option } : option;
 }
 
 function getSelectedFilterValues(filter: FilterBarItem) {
-  return filter.values?.length ? filter.values : [filter.value];
+  return filter.multiple ? filter.values : [filter.value];
 }
 
 function normalizeSelectedFilterValues(filter: FilterBarItem, options: FilterOption[], selectedValues: string[]) {
@@ -330,7 +349,7 @@ function getNextPendingMultiFilterValues(selectedValues: string[], optionValue: 
 }
 
 function getFilterValueLabel(filter: FilterBarItem, option: FilterOption | undefined) {
-  const value = option?.value ?? filter.value;
+  const value = option?.value ?? (filter.multiple ? filter.values[0] ?? "" : filter.value);
 
   return filter.formatValue?.(value) ?? option?.compactLabel ?? option?.label ?? value;
 }
@@ -377,7 +396,11 @@ function areFilterValueSetsEqual(firstValues: string[], secondValues: string[]) 
 }
 
 function isAllFilterOption(filter: FilterBarItem, option: FilterOption) {
-  return getFilterOptionLabel(filter, option).trim().toLowerCase().startsWith("all");
+  if (filter.allOptionValue !== undefined) {
+    return option.value === filter.allOptionValue;
+  }
+
+  return option.value.trim().toLowerCase() === "all";
 }
 
 function getPluralFilterLabel(label: string) {

@@ -44,7 +44,17 @@
   z-index: 1;
 }
 
-.cs-card-tile:hover::after {
+.cs-card-tile[data-interactive="true"] {
+  cursor: pointer;
+}
+
+.cs-card-tile:has(.cs-card-tile-interaction:focus-visible) {
+  outline: var(--cs-interaction-focus-outline);
+  outline-offset: var(--cs-interaction-focus-outline-offset);
+}
+
+.cs-card-tile:hover::after,
+.cs-card-tile:has(.cs-card-tile-interaction:focus-visible)::after {
   border-color: var(--cs-interaction-outline);
   box-shadow: var(--cs-interaction-outline-shadow);
 }
@@ -1064,7 +1074,8 @@
   line-height: var(--cs-leading-none);
 }
 
-.cs-metadata-tooltip-trigger[data-tooltip="true"]:not(.cs-delta):hover {
+.cs-metadata-tooltip-trigger[data-tooltip="true"]:not(.cs-delta):hover,
+.cs-metadata-tooltip-trigger[data-tooltip="true"]:not(.cs-delta):focus-visible {
   color: var(--cs-color-muted-strong);
 }
 
@@ -1115,7 +1126,8 @@
   white-space: normal;
 }
 
-.cs-metadata-tooltip-trigger[data-tooltip="true"]:hover .cs-metadata-tooltip {
+.cs-metadata-tooltip-trigger[data-tooltip="true"]:hover .cs-metadata-tooltip,
+.cs-metadata-tooltip-trigger[data-tooltip="true"]:focus-visible .cs-metadata-tooltip {
   opacity: 1;
   transform: translate(-50%, 0);
 }
@@ -1203,6 +1215,10 @@
   border-top: var(--cs-border-subtle);
   background: var(--cs-panel-background);
   box-shadow: var(--cs-panel-shadow);
+}
+
+.cs-collection-summary[data-has-metrics="false"] {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cs-collection-summary-chart,
@@ -1859,14 +1875,27 @@
   cursor: pointer;
 }
 
-.cs-card-row[data-interactive="true"]:focus-visible {
+.cs-card-row-interaction,
+.cs-card-tile-interaction {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cs-card-row:has(.cs-card-row-interaction:focus-visible) {
   outline: var(--cs-interaction-focus-outline);
   outline-offset: var(--cs-interaction-focus-outline-offset);
 }
 
 .cs-card-row:hover::after,
 .cs-card-row[data-active="true"]::after,
-.cs-card-row[data-interactive="true"]:focus-visible::after {
+.cs-card-row:has(.cs-card-row-interaction:focus-visible)::after {
   border-color: var(--cs-interaction-outline);
   box-shadow: var(--cs-interaction-outline-shadow);
 }
@@ -1901,7 +1930,8 @@
     display: inline-flex;
   }
 
-  .cs-metadata-tooltip-trigger[data-tooltip="true"][data-tooltip-visibility="compact"]:hover {
+  .cs-metadata-tooltip-trigger[data-tooltip="true"][data-tooltip-visibility="compact"]:hover,
+  .cs-metadata-tooltip-trigger[data-tooltip="true"][data-tooltip-visibility="compact"]:focus-visible {
     color: inherit;
   }
 
